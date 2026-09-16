@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-50 text-gray-900;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.card {
+  @apply bg-white rounded-xl border border-gray-200 p-6;
+}
+
+.btn-primary {
+  @apply bg-brand-blue text-white rounded-lg px-4 py-2 font-medium hover:bg-blue-700 transition-colors;
+}
+
+.btn-secondary {
+  @apply bg-white text-gray-800 border border-gray-300 rounded-lg px-4 py-2 font-medium hover:bg-gray-50 transition-colors;
+}
+
+.btn-outline-blue {
+  @apply bg-white text-brand-blue border border-brand-blue rounded-lg px-4 py-2 font-medium hover:bg-blue-50 transition-colors;
+}
+
+/* Admin portal helpers */
+.stat-card {
+  @apply bg-white rounded-xl border border-gray-200 p-5;
+}
+.stat-icon {
+  @apply h-10 w-10 rounded-lg flex items-center justify-center text-lg mb-3;
+}
+.badge {
+  @apply inline-block px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+.badge-pending { @apply bg-amber-100 text-amber-700; }
+.badge-verified { @apply bg-green-100 text-green-700; }
+.badge-rejected { @apply bg-red-100 text-red-700; }
+.badge-active { @apply bg-green-100 text-green-700; }
+.avatar-sq {
+  @apply h-8 w-8 rounded-lg bg-navy-900 text-white flex items-center justify-center text-[11px] font-bold;
+}
+.view-btn {
+  @apply border border-blue-300 text-brand-blue bg-white rounded-md px-3.5 py-1.5 text-xs font-medium hover:bg-blue-50;
+}
+.admin-table { @apply w-full text-sm border-collapse; }
+.admin-table th { @apply text-left text-gray-500 font-medium py-2.5 border-b border-gray-200; }
+.admin-table td { @apply py-3 border-b border-gray-100 align-middle; }
+.btn-red-solid { @apply bg-brand-red text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-red-700 whitespace-nowrap; }
+
+
