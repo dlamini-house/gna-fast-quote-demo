@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAppState, submitApplication, findUserAccount } from '../data/store'
 import { COMPANY_LEGAL_LINE } from '../data/mockData'
+import SupplierStrip from '../components/SupplierStrip'
 
 export default function SignUp() {
   const [state, setState] = useAppState()
@@ -121,6 +122,10 @@ export default function SignUp() {
         </div>
       </div>
       <p className="text-[11px] text-gray-400 text-center mt-3 mb-2">{COMPANY_LEGAL_LINE}</p>
+
+      <div className="max-w-2xl mx-auto px-6 pt-6">
+        <SupplierStrip />
+      </div>
 
       <div className="max-w-2xl mx-auto px-6 py-10">
         <div className="card">

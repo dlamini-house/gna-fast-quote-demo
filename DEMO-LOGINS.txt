@@ -1,0 +1,50 @@
+GNA FAST QUOTE — DEMO LOGIN CREDENTIALS
+=========================================
+IMPORTANT: This demo stores data in each browser's local storage only.
+Nobody shares data with anybody else — every visitor to the link gets
+their own fresh copy of the accounts below. Creating a new admin/user or
+approving someone in YOUR browser will not appear in the CLIENT's browser,
+and vice versa. To demo the full "sign up -> approve -> sign in" loop for
+someone, do it all in one browser session in front of them (or on a screen
+share), not by doing half on your machine and half on theirs.
+
+-----------------------------------------
+ADMIN PORTAL — sign in at /admin-sign-in
+-----------------------------------------
+Password (same for all seeded admins): GnaAdmin2026
+
+1. gavine@gnafastquote.co.za   — Master Admin (full access, incl. managing admins)
+2. lamu@dlaminihouse.co.za     — Admin (cannot see/manage other admins)
+3. support@gnafastquote.co.za  — Admin (cannot see/manage other admins)
+
+Any Master Admin can create more admin accounts from
+Admin Portal -> Admins -> Add Admin User, setting a password for that
+new admin right there.
+
+-----------------------------------------
+CONTRACTOR PORTAL — sign in at / (the main Sign In page)
+-----------------------------------------
+Password (same for all seeded contractors): Contractor2026
+
+VERIFIED — these two can sign in right now:
+  4. david@dcdeng.co.za   — DCD Engineering
+  5. anel@avdesigns.co.za — AV Designs (Pty) Ltd
+
+PENDING — these will show "still pending admin approval" until an admin
+approves them from Potential Users. Good for demoing the approval flow:
+  6. john@buildcore.co.za      — BuildCore (Pty) Ltd
+  7. sarah@sa-structure.co.za  — SA Structure (Pty) Ltd
+  8. michael@metroplans.co.za  — Metro Plans (Pty) Ltd
+
+REJECTED — these will show a rejection message and cannot sign in.
+Good for demoing the "Rejected Profiles" admin tab:
+  9. thabo@mkontobuild.co.za  — Mkonto Builders
+  10. sipho@quickstruct.co.za — QuickStruct CC
+
+-----------------------------------------
+CREATING A BRAND NEW ACCOUNT FOR A LIVE DEMO
+-----------------------------------------
+For the best "wow" moment with a client: use the Sign Up page to register
+a brand new company live (with their own logo upload), open the admin
+portal in another browser tab, approve it, then switch back and sign in
+as that brand-new account to show their own logo on a generated quote.

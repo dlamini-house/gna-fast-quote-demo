@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
+import SupplierStrip from '../components/SupplierStrip'
 import { useAppState, trialStatus, currentUser } from '../data/store'
 
 export default function Dashboard() {
@@ -12,6 +13,10 @@ export default function Dashboard() {
 
   return (
     <Layout title="Dashboard">
+      <div className="mb-8">
+        <SupplierStrip />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="card">
           <p className="text-sm text-gray-500 mb-1">Plan status</p>
