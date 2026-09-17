@@ -42,11 +42,15 @@ function loadState() {
   } catch (e) {
     console.warn('Could not read local demo state', e)
   }
-  // Merge with defaults so older saved state (before admin data existed) still works.
+  // Merge with defaults so older saved state (before admin data existed, or
+  // before admin passwords existed) still works — reseed if the email is
+  // missing OR the records are the old shape with no password field.
   const adminUsers =
-    saved.adminUsers && saved.adminUsers.some((a) => a.email === 'gavine@gnafastquote.co.za')
+    saved.adminUsers &&
+    saved.adminUsers.some((a) => a.email === 'gavine@gnafastquote.co.za') &&
+    saved.adminUsers.every((a) => 'password' in a)
       ? saved.adminUsers
-      : DEFAULT_ADMIN_USERS // stale pre-Master-Admin data from an earlier demo build — reseed
+      : DEFAULT_ADMIN_USERS // stale pre-password admin data from an earlier demo build — reseed
 
   // Same self-healing for applications: older saved state won't have
   // passwords/logos on each record, so reseed if the shape looks stale.
