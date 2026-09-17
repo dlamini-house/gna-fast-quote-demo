@@ -2,155 +2,214 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import Layout from '../components/Layout'
-import { TRADE_CATEGORIES, VAT_RATE, MOCK_EXTRACTED_QUANTITIES, COMPANY_LEGAL_LINE } from '../data/mockData'
+import {
+  MOCK_EXTRACTED_MATERIALS,
+  LABOUR_TRADES,
+  LABOUR_FIXED,
+  UNIT_OPTIONS,
+  DEMO_LABOUR_RATES,
+  COMPANY_LEGAL_LINE
+} from '../data/mockData'
 import { useAppState, canGenerateQuote } from '../data/store'
 import { LOGO_BASE64 } from '../data/logo'
+import { db } from '../data/db'
 
-const STEPS = ['Upload Plans', 'Review Info', 'Quote Settings', 'Add Labour', 'Generate PDF']
+const STEPS = ['Upload Plan', 'Review Extracted Info', 'Pricing Engine', 'Add Labour Rate', 'Generate PDF Quote']
 
-function emptyLineItems() {
-  return TRADE_CATEGORIES.map((cat) => ({ ...cat, qty: '', unitPrice: '', discount: 0 }))
+function unitLabel(unitId) {
+  return UNIT_OPTIONS.find((u) => u.id === unitId)?.label || unitId
 }
 
 export default function NewQuote() {
   const [state, setState] = useAppState()
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
+
+  // Step 0
   const [projectName, setProjectName] = useState('')
+  const [clientName, setClientName] = useState('')
+  const [siteAddress, setSiteAddress] = useState('')
   const [planFileName, setPlanFileName] = useState('')
-  const [lineItems, setLineItems] = useState(emptyLineItems())
-  const [markup, setMarkup] = useState(10)
-  const [labourRate, setLabourRate] = useState('')
-  const [customerName, setCustomerName] = useState('')
   const [extracting, setExtracting] = useState(false)
   const [wasExtracted, setWasExtracted] = useState(false)
 
+  // Step 1: extracted material line items (qty editable, rate fixed from price list)
+  const [materials, setMaterials] = useState(MOCK_EXTRACTED_MATERIALS.map((m) => ({ ...m })))
+
+  // Step 2: pricing engine settings
+  const [markup, setMarkup] = useState(15)
+  const [vatPercent, setVatPercent] = useState(15)
+  const [transportAllowance, setTransportAllowance] = useState(5000)
+
+  // Step 3: labour
+  const [labourRates, setLabourRates] = useState(
+    Object.fromEntries(LABOUR_TRADES.map((t) => [t.id, { rate: String(DEMO_LABOUR_RATES[t.id] ?? ''), unit: t.unit }]))
+  )
+  const [fixedLabour, setFixedLabour] = useState(
+    Object.fromEntries(LABOUR_FIXED.map((f) => [f.id, String(f.amount)]))
+  )
+
+  // Step 4
+  const [showPreview, setShowPreview] = useState(false)
+
+  const allowed = canGenerateQuote(state)
+
   function goToReview() {
-    if (!planFileName) {
-      setStep(1)
-      return
-    }
-    // Demo-only: simulate the "assisted extraction" step described in the
-    // proposal — a real build would run cad-viewer measurements here instead.
-    // The contractor still has to review and confirm every value on the next
-    // screen, same as the real product would require.
     setExtracting(true)
     setTimeout(() => {
-      setLineItems((items) =>
-        items.map((it) => {
-          const found = MOCK_EXTRACTED_QUANTITIES[it.id]
-          return found ? { ...it, qty: String(found.qty), unitPrice: String(found.unitPrice) } : it
-        })
-      )
+      setMaterials(MOCK_EXTRACTED_MATERIALS.map((m) => ({ ...m })))
       setExtracting(false)
       setWasExtracted(true)
       setStep(1)
     }, 1400)
   }
 
-  const allowed = canGenerateQuote(state)
-
-  function updateItem(id, field, value) {
-    setLineItems((items) =>
-      items.map((it) => (it.id === id ? { ...it, [field]: value } : it))
-    )
+  function updateMaterialQty(id, qty) {
+    setMaterials((items) => items.map((it) => (it.id === id ? { ...it, qty } : it)))
   }
 
-  const subtotal = lineItems.reduce((sum, it) => {
-    const qty = parseFloat(it.qty) || 0
-    const price = parseFloat(it.unitPrice) || 0
-    const discount = parseFloat(it.discount) || 0
-    return sum + (qty * price - qty * price * (discount / 100))
-  }, 0)
-  const labour = parseFloat(labourRate) || 0
-  const markedUp = (subtotal + labour) * (1 + (parseFloat(markup) || 0) / 100)
-  const vat = markedUp * VAT_RATE
-  const total = markedUp + vat
+  function updateLabourRate(id, field, value) {
+    setLabourRates((rates) => ({ ...rates, [id]: { ...rates[id], [field]: value } }))
+  }
 
-  function generatePdf() {
+  // ---- Live calculations ----
+  const materialCost = materials.reduce((sum, m) => sum + (parseFloat(m.qty) || 0) * m.rate, 0)
+
+  const labourLines = LABOUR_TRADES.map((t) => {
+    const rate = parseFloat(labourRates[t.id]?.rate) || 0
+    const unit = labourRates[t.id]?.unit || t.unit
+    return { ...t, unit, rate, cost: rate * t.basis }
+  })
+  const fixedLines = LABOUR_FIXED.map((f) => ({ ...f, amount: parseFloat(fixedLabour[f.id]) || 0 }))
+  const labourCost =
+    labourLines.reduce((sum, l) => sum + l.cost, 0) + fixedLines.reduce((sum, f) => sum + f.amount, 0)
+
+  const transport = parseFloat(transportAllowance) || 0
+  const subtotal = materialCost + labourCost + transport
+  const markupAmount = subtotal * ((parseFloat(markup) || 0) / 100)
+  const markedUp = subtotal + markupAmount
+  const vatAmount = markedUp * ((parseFloat(vatPercent) || 0) / 100)
+  const grandTotal = markedUp + vatAmount
+
+  const reference = `GNA-DEMO-${String(state.quotes.length + 1).padStart(3, '0')}`
+
+  async function generatePdf() {
     const doc = new jsPDF()
 
     function finishAndSave(companyLogoImg) {
-      // GNA Fast Quote logo — large and prominent, top-left
-      doc.addImage(LOGO_BASE64, 'JPEG', 14, 8, 66, 35)
+      doc.addImage(LOGO_BASE64, 'JPEG', 14, 8, 60, 32)
       doc.setFontSize(7.5)
       doc.setTextColor(90, 90, 90)
-      doc.text(COMPANY_LEGAL_LINE, 14, 46)
+      doc.text(COMPANY_LEGAL_LINE, 14, 44)
 
-      // Contractor's own company logo — top-right, if they uploaded one
       if (companyLogoImg) {
-        const maxW = 42
-        const maxH = 26
+        const maxW = 40
+        const maxH = 24
         const ratio = Math.min(maxW / companyLogoImg.width, maxH / companyLogoImg.height)
         const w = companyLogoImg.width * ratio
         const h = companyLogoImg.height * ratio
         doc.addImage(companyLogoImg.dataUrl, 'PNG', 196 - w, 8, w, h)
       }
 
-      doc.setFontSize(9)
-      doc.setTextColor(120, 120, 120)
+      doc.setFontSize(18)
+      doc.setTextColor(228, 32, 44)
+      doc.text('QUOTE', 196, 40, { align: 'right' })
+
       doc.setDrawColor(228, 32, 44)
       doc.setLineWidth(0.6)
-      doc.line(14, 50, 196, 50)
+      doc.line(14, 48, 196, 48)
+
+      doc.setFontSize(10)
+      doc.setTextColor(120, 120, 120)
+      doc.text(`Reference: ${reference}`, 196, 55, { align: 'right' })
+      doc.text(`Date: ${new Date().toLocaleDateString()}`, 196, 61, { align: 'right' })
 
       doc.setFontSize(11)
       doc.setTextColor(40, 40, 40)
-      doc.text(`Project: ${projectName || 'Untitled project'}`, 14, 60)
-      doc.text(`Customer: ${customerName || '-'}`, 14, 67)
-      doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 74)
+      doc.text(`Project: ${projectName || 'Untitled project'}`, 14, 58)
+      doc.text(`Client: ${clientName || '-'}`, 14, 65)
+      doc.text(`Site: ${siteAddress || '-'}`, 14, 72)
 
-      let y = 88
+      let y = 86
       doc.setFontSize(12)
-      doc.text('Item', 14, y)
-      doc.text('Qty', 110, y)
-      doc.text('Unit price', 135, y)
-      doc.text('Line total', 170, y)
+      doc.text('Description', 14, y)
+      doc.text('Amount (ZAR)', 196, y, { align: 'right' })
       y += 4
       doc.line(14, y, 196, y)
       y += 8
       doc.setFontSize(10)
-      lineItems.forEach((it) => {
-        const qty = parseFloat(it.qty) || 0
-        const price = parseFloat(it.unitPrice) || 0
-        if (qty === 0 && price === 0) return
-        const lineTotal = qty * price - qty * price * ((parseFloat(it.discount) || 0) / 100)
-        doc.text(it.label, 14, y, { maxWidth: 90 })
-        doc.text(String(qty), 110, y)
-        doc.text(`R ${price.toFixed(2)}`, 135, y)
-        doc.text(`R ${lineTotal.toFixed(2)}`, 170, y)
+
+      const summaryRows = [
+        ['Material Cost', materialCost],
+        ['Labour Cost', labourCost],
+        ['Transport / Location Allowance', transport],
+        [`Mark-up (${markup}%)`, markupAmount],
+        [`VAT (${vatPercent}%)`, vatAmount]
+      ]
+      summaryRows.forEach(([label, amount]) => {
+        doc.text(label, 14, y)
+        doc.text(`R ${amount.toFixed(2)}`, 196, y, { align: 'right' })
         y += 8
       })
 
-      y += 4
+      y += 2
+      doc.setLineWidth(0.8)
       doc.line(14, y, 196, y)
-      y += 8
-      doc.text(`Labour: R ${labour.toFixed(2)}`, 140, y)
-      y += 7
-      doc.text(`Subtotal + markup (${markup}%): R ${markedUp.toFixed(2)}`, 140, y)
-      y += 7
-      doc.text(`VAT (15%): R ${vat.toFixed(2)}`, 140, y)
-      y += 7
-      doc.setFontSize(12)
-      doc.text(`Total: R ${total.toFixed(2)}`, 140, y)
+      y += 10
+      doc.setFontSize(14)
+      doc.setTextColor(228, 32, 44)
+      doc.text('Grand Total:', 14, y)
+      doc.text(`R ${grandTotal.toFixed(2)}`, 196, y, { align: 'right' })
 
-      doc.save(`${(projectName || 'gna-quote').replace(/\s+/g, '-')}.pdf`)
+      y += 16
+      doc.setFontSize(11)
+      doc.setTextColor(40, 40, 40)
+      doc.text('Assumptions', 14, y)
+      y += 7
+      doc.setFontSize(9)
+      doc.setTextColor(80, 80, 80)
+      ;[
+        'Quote based on uploaded plan and confirmed extracted quantities.',
+        'Pricing is calculated from the supplied Excel pricing data.',
+        'Final measurements must be confirmed before work starts.'
+      ].forEach((line) => {
+        doc.text(`•  ${line}`, 14, y)
+        y += 6
+      })
+
+      y += 4
+      doc.setFontSize(11)
+      doc.setTextColor(40, 40, 40)
+      doc.text('Exclusions', 14, y)
+      y += 7
+      doc.setFontSize(9)
+      doc.setTextColor(80, 80, 80)
+      ;[
+        'Items not visible or not shown on the supplied plan are excluded.',
+        'Municipal approvals, engineering changes and abnormal site conditions excluded.',
+        'Professional fees (architect, engineer, council) not included unless stated.'
+      ].forEach((line) => {
+        doc.text(`•  ${line}`, 14, y)
+        y += 6
+      })
+
+      doc.save(`${reference}-${(projectName || 'gna-quote').replace(/\s+/g, '-')}.pdf`)
 
       const newQuote = {
         id: Date.now(),
+        reference,
         projectName: projectName || 'Untitled project',
-        customerName,
-        total,
+        customerName: clientName,
+        siteAddress,
+        total: grandTotal,
         status: 'completed',
         createdAt: new Date().toISOString()
       }
       setState((s) => ({ ...s, quotes: [...s.quotes, newQuote] }))
+      db.set('quotes', String(newQuote.id), newQuote)
       navigate('/quotes')
     }
 
-    // If the contractor uploaded their own logo (at sign-up or in Profile),
-    // rasterize it to a PNG data URL via canvas first — this normalizes any
-    // input format (PNG/JPEG/WEBP/SVG) into something jsPDF can embed
-    // reliably, and gives us its true pixel dimensions for correct scaling.
     if (state.companyLogo?.dataUrl) {
       const img = new Image()
       img.onload = () => {
@@ -173,12 +232,8 @@ export default function NewQuote() {
       <Layout title="New Quote">
         <div className="card text-center">
           <h2 className="text-lg font-semibold mb-2">Your free trial has ended</h2>
-          <p className="text-sm text-gray-500 mb-4">
-            Choose a plan or buy credits to keep generating quotes.
-          </p>
-          <button className="btn-primary" onClick={() => navigate('/pricing')}>
-            Go to Pricing &amp; Credits
-          </button>
+          <p className="text-sm text-gray-500 mb-4">Choose a plan or buy credits to keep generating quotes.</p>
+          <button className="btn-primary" onClick={() => navigate('/pricing')}>Go to Pricing &amp; Credits</button>
         </div>
       </Layout>
     )
@@ -191,11 +246,7 @@ export default function NewQuote() {
           <div key={s} className="flex items-center gap-2">
             <div
               className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold ${
-                i === step
-                  ? 'bg-brand-blue text-white'
-                  : i < step
-                  ? 'bg-brand-green text-white'
-                  : 'bg-gray-200 text-gray-500'
+                i === step ? 'bg-brand-blue text-white' : i < step ? 'bg-brand-green text-white' : 'bg-gray-200 text-gray-500'
               }`}
             >
               {i + 1}
@@ -206,174 +257,270 @@ export default function NewQuote() {
         ))}
       </div>
 
+      {/* Step 0: Upload Plan */}
       {step === 0 && (
         <div className="card max-w-xl">
-          <h2 className="text-lg font-semibold mb-4">Upload plans</h2>
-          <input
-            className="w-full border rounded-lg px-3 py-2 mb-4"
-            placeholder="Project name"
-            value={projectName}
-            onChange={(e) => setProjectName(e.target.value)}
-          />
-          <input
-            className="w-full border rounded-lg px-3 py-2 mb-4"
-            placeholder="Customer name"
-            value={customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
-          />
+          <h2 className="text-lg font-semibold mb-4">Upload plan</h2>
+          <input className="w-full border rounded-lg px-3 py-2 mb-4" placeholder="Project name" value={projectName} onChange={(e) => setProjectName(e.target.value)} />
+          <input className="w-full border rounded-lg px-3 py-2 mb-4" placeholder="Client name" value={clientName} onChange={(e) => setClientName(e.target.value)} />
+          <input className="w-full border rounded-lg px-3 py-2 mb-4" placeholder="Site address" value={siteAddress} onChange={(e) => setSiteAddress(e.target.value)} />
           <label className="block border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer mb-4">
-            <input
-              type="file"
-              accept=".pdf,.dxf,.dwg,image/*"
-              className="hidden"
-              onChange={(e) => setPlanFileName(e.target.files?.[0]?.name || '')}
-            />
-            <p className="text-sm text-gray-500">
-              {planFileName ? `Selected: ${planFileName}` : 'Click to upload a PDF, image, or DXF plan'}
-            </p>
+            <input type="file" accept=".pdf,.dxf,.dwg,image/*" className="hidden" onChange={(e) => setPlanFileName(e.target.files?.[0]?.name || '')} />
+            <p className="text-sm text-gray-500">{planFileName ? `Selected: ${planFileName}` : 'Click to upload a PDF, image, or DXF plan'}</p>
           </label>
           <p className="text-xs text-gray-400 mb-4">
-            {planFileName
-              ? "Quantities will be pre-filled from the plan on the next step — you'll still review and confirm every value."
-              : 'No file yet? You can also skip straight to Review Info and enter quantities manually.'}
+            Materials and labour quantities will be pre-filled on the next steps — you'll review and confirm every value before anything is priced.
           </p>
           <button className="btn-primary" onClick={goToReview} disabled={extracting}>
-            {extracting ? 'Analyzing plan…' : 'Next: Review info'}
+            {extracting ? 'Analyzing plan…' : 'Next: Review Extracted Info'}
           </button>
           {extracting && (
             <p className="text-xs text-gray-400 mt-3 flex items-center gap-2">
               <span className="inline-block h-3 w-3 rounded-full border-2 border-brand-blue border-t-transparent animate-spin"></span>
-              Reading plan and estimating quantities per trade category…
+              Mapping plan elements to price-list items…
             </p>
           )}
         </div>
       )}
 
+      {/* Step 1: Review Extracted Info */}
       {step === 1 && (
         <div className="card">
-          <h2 className="text-lg font-semibold mb-2">Review extracted quantities</h2>
-          {wasExtracted ? (
-            <p className="text-sm text-brand-blue bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-4">
-              These quantities were estimated from your uploaded plan. Please review and adjust before continuing — nothing is priced until you confirm.
-            </p>
-          ) : (
-            <p className="text-sm text-gray-500 mb-4">No plan was uploaded, so enter quantities manually below.</p>
-          )}
-          <div className="space-y-3">
-            {lineItems.map((it) => (
-              <div key={it.id} className="grid grid-cols-12 gap-3 items-center">
-                <span className="col-span-5 text-sm">{it.label}</span>
-                <input
-                  type="number"
-                  className="col-span-2 border rounded-lg px-2 py-1.5 text-sm"
-                  placeholder="Qty"
-                  value={it.qty}
-                  onChange={(e) => updateItem(it.id, 'qty', e.target.value)}
-                />
-                <input
-                  type="number"
-                  className="col-span-3 border rounded-lg px-2 py-1.5 text-sm"
-                  placeholder="Unit price (R)"
-                  value={it.unitPrice}
-                  onChange={(e) => updateItem(it.id, 'unitPrice', e.target.value)}
-                />
-                <input
-                  type="number"
-                  className="col-span-2 border rounded-lg px-2 py-1.5 text-sm"
-                  placeholder="Disc %"
-                  value={it.discount}
-                  onChange={(e) => updateItem(it.id, 'discount', e.target.value)}
-                />
-              </div>
-            ))}
+          <h2 className="text-lg font-semibold mb-2">Review extracted info</h2>
+          <p className="text-sm text-brand-blue bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-4">
+            These quantities were estimated from your uploaded plan and mapped to items in your price
+            list. Adjust any quantity before continuing.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b">
+                  <th className="py-2 pr-2 font-medium">Source</th>
+                  <th className="py-2 pr-2 font-medium">Code</th>
+                  <th className="py-2 pr-2 font-medium">Description</th>
+                  <th className="py-2 pr-2 font-medium">Qty</th>
+                  <th className="py-2 pr-2 font-medium text-right">Rate</th>
+                  <th className="py-2 font-medium text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {materials.map((m) => (
+                  <tr key={m.id} className="border-b border-gray-100">
+                    <td className="py-2 pr-2 text-gray-500">{m.source}</td>
+                    <td className="py-2 pr-2 text-gray-500">{m.code}</td>
+                    <td className="py-2 pr-2">{m.description}</td>
+                    <td className="py-2 pr-2">
+                      <input
+                        type="number"
+                        className="w-20 border rounded px-2 py-1"
+                        value={m.qty}
+                        onChange={(e) => updateMaterialQty(m.id, e.target.value)}
+                      />
+                    </td>
+                    <td className="py-2 pr-2 text-right">R {m.rate.toFixed(2)}</td>
+                    <td className="py-2 text-right font-medium">R {((parseFloat(m.qty) || 0) * m.rate).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
           <div className="flex justify-between mt-6">
-            <button className="btn-secondary" onClick={() => setStep(0)}>
-              Back
-            </button>
-            <button className="btn-primary" onClick={() => setStep(2)}>
-              Next: Quote settings
-            </button>
+            <button className="btn-secondary" onClick={() => setStep(0)}>Back</button>
+            <button className="btn-primary" onClick={() => setStep(2)}>Next: Pricing Engine</button>
           </div>
         </div>
       )}
 
+      {/* Step 2: Pricing Engine */}
       {step === 2 && (
-        <div className="card max-w-md">
-          <h2 className="text-lg font-semibold mb-4">Quote settings</h2>
-          <label className="block text-sm text-gray-500 mb-1">Mark-up %</label>
-          <input
-            type="number"
-            className="w-full border rounded-lg px-3 py-2 mb-4"
-            value={markup}
-            onChange={(e) => setMarkup(e.target.value)}
-          />
-          <p className="text-sm text-gray-500 mb-4">VAT is fixed at 15%, applied automatically.</p>
-          <div className="flex justify-between">
-            <button className="btn-secondary" onClick={() => setStep(1)}>
-              Back
-            </button>
-            <button className="btn-primary" onClick={() => setStep(3)}>
-              Next: Add labour
-            </button>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="card">
+            <h2 className="text-lg font-semibold mb-1">Excel-based pricing engine</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Pricing is imported from your price list: Product Code, Description, Quantity, Unit,
+              Price, Incl VAT.
+            </p>
+            <label className="block text-sm text-gray-500 mb-1">Mark-up %</label>
+            <input type="number" className="w-full border rounded-lg px-3 py-2 mb-4" value={markup} onChange={(e) => setMarkup(e.target.value)} />
+            <label className="block text-sm text-gray-500 mb-1">VAT %</label>
+            <input type="number" className="w-full border rounded-lg px-3 py-2 mb-4" value={vatPercent} onChange={(e) => setVatPercent(e.target.value)} />
+            <label className="block text-sm text-gray-500 mb-1">Transport Allowance (R)</label>
+            <input type="number" className="w-full border rounded-lg px-3 py-2 mb-6" value={transportAllowance} onChange={(e) => setTransportAllowance(e.target.value)} />
+            <div className="flex justify-between">
+              <button className="btn-secondary" onClick={() => setStep(1)}>Back</button>
+              <button className="btn-primary" onClick={() => setStep(3)}>Add Labour Rate &rarr;</button>
+            </div>
+          </div>
+
+          <div className="card">
+            <h2 className="text-lg font-semibold mb-4">Mapped material items</h2>
+            <div className="overflow-y-auto max-h-72">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="text-left text-gray-500 border-b">
+                    <th className="py-2 pr-2 font-medium">Source</th>
+                    <th className="py-2 pr-2 font-medium">Code</th>
+                    <th className="py-2 pr-2 font-medium">Qty</th>
+                    <th className="py-2 pr-2 font-medium text-right">Rate</th>
+                    <th className="py-2 font-medium text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {materials.map((m) => (
+                    <tr key={m.id} className="border-b border-gray-100">
+                      <td className="py-2 pr-2 text-gray-500">{m.source}</td>
+                      <td className="py-2 pr-2 text-gray-500">{m.code}</td>
+                      <td className="py-2 pr-2">{m.qty}</td>
+                      <td className="py-2 pr-2 text-right">R {m.rate.toFixed(2)}</td>
+                      <td className="py-2 text-right">R {((parseFloat(m.qty) || 0) * m.rate).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex justify-between mt-4 pt-4 border-t font-semibold">
+              <span>Material Cost</span>
+              <span>R {materialCost.toFixed(2)}</span>
+            </div>
           </div>
         </div>
       )}
 
+      {/* Step 3: Add Labour Rate */}
       {step === 3 && (
-        <div className="card max-w-md">
-          <h2 className="text-lg font-semibold mb-4">Labour rate</h2>
-          <label className="block text-sm text-gray-500 mb-1">Labour cost for contract (R)</label>
-          <input
-            type="number"
-            className="w-full border rounded-lg px-3 py-2 mb-4"
-            value={labourRate}
-            onChange={(e) => setLabourRate(e.target.value)}
-          />
-          <div className="flex justify-between">
-            <button className="btn-secondary" onClick={() => setStep(2)}>
-              Back
-            </button>
-            <button className="btn-primary" onClick={() => setStep(4)}>
-              Next: Generate PDF
-            </button>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="card">
+            <h2 className="text-lg font-semibold mb-1">Contractor labour rates</h2>
+            <p className="text-sm text-gray-500 mb-4">Labour is contractor-controlled and added after material pricing.</p>
+            <div className="space-y-3">
+              {LABOUR_TRADES.map((t) => (
+                <div key={t.id} className="grid grid-cols-12 gap-2 items-center">
+                  <span className="col-span-5 text-sm">{t.label}</span>
+                  <select
+                    className="col-span-3 border rounded-lg px-2 py-1.5 text-sm"
+                    value={labourRates[t.id].unit}
+                    onChange={(e) => updateLabourRate(t.id, 'unit', e.target.value)}
+                  >
+                    {UNIT_OPTIONS.map((u) => (<option key={u.id} value={u.id}>{u.label}</option>))}
+                  </select>
+                  <input
+                    type="number"
+                    className="col-span-4 border rounded-lg px-2 py-1.5 text-sm"
+                    placeholder="Rate (R)"
+                    value={labourRates[t.id].rate}
+                    onChange={(e) => updateLabourRate(t.id, 'rate', e.target.value)}
+                  />
+                </div>
+              ))}
+              {LABOUR_FIXED.map((f) => (
+                <div key={f.id} className="grid grid-cols-12 gap-2 items-center">
+                  <span className="col-span-5 text-sm">{f.label}</span>
+                  <span className="col-span-3 text-xs text-gray-400">fixed</span>
+                  <input
+                    type="number"
+                    className="col-span-4 border rounded-lg px-2 py-1.5 text-sm"
+                    value={fixedLabour[f.id]}
+                    onChange={(e) => setFixedLabour((v) => ({ ...v, [f.id]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between mt-6">
+              <button className="btn-secondary" onClick={() => setStep(2)}>Back</button>
+              <button className="btn-primary" onClick={() => setStep(4)}>Next: Generate PDF Quote</button>
+            </div>
+          </div>
+
+          <div className="card">
+            <h2 className="text-lg font-semibold mb-4">Live labour summary</h2>
+            <div className="text-sm space-y-2">
+              {labourLines.map((l) => (
+                <div key={l.id} className="flex justify-between">
+                  <span className="text-gray-500">{l.label}</span>
+                  <span>R {l.cost.toFixed(2)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between">
+                <span className="text-gray-500">Additional Costs</span>
+                <span>R {fixedLines.reduce((sum, f) => sum + f.amount, 0).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between font-semibold text-base border-t pt-3 mt-1 text-brand-green">
+                <span>Total Labour Cost</span>
+                <span>R {labourCost.toFixed(2)}</span>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
+      {/* Step 4: Generate PDF Quote */}
       {step === 4 && (
-        <div className="card max-w-md">
-          <h2 className="text-lg font-semibold mb-4">Quote summary</h2>
-          <div className="text-sm space-y-2 mb-6">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Materials subtotal</span>
-              <span>R {subtotal.toFixed(2)}</span>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <div className="card">
+            <h2 className="text-lg font-semibold mb-4">Quote summary</h2>
+            <div className="text-sm space-y-2 mb-4">
+              <div className="flex justify-between"><span className="text-gray-500">Material Cost</span><span>R {materialCost.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Labour Cost</span><span>R {labourCost.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Transport / Location Allowance</span><span>R {transport.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Mark-up ({markup}%)</span><span>R {markupAmount.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">VAT ({vatPercent}%)</span><span>R {vatAmount.toFixed(2)}</span></div>
+              <div className="flex justify-between font-semibold text-base border-t pt-2 text-brand-green">
+                <span>Grand Total</span><span>R {grandTotal.toFixed(2)}</span>
+              </div>
             </div>
+            <p className="text-xs text-brand-blue bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-4">
+              Generating this quote would deduct 1 credit from your account.
+            </p>
             <div className="flex justify-between">
-              <span className="text-gray-500">Labour</span>
-              <span>R {labour.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">After {markup}% mark-up</span>
-              <span>R {markedUp.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">VAT (15%)</span>
-              <span>R {vat.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between font-semibold text-base border-t pt-2">
-              <span>Total</span>
-              <span>R {total.toFixed(2)}</span>
+              <button className="btn-secondary" onClick={() => setStep(3)}>Back</button>
+              <button className="btn-primary" onClick={() => setShowPreview(true)}>Open PDF-Ready Quote</button>
             </div>
           </div>
-          <div className="flex justify-between">
-            <button className="btn-secondary" onClick={() => setStep(3)}>
-              Back
-            </button>
-            <button className="btn-primary" onClick={generatePdf}>
-              Generate PDF quote
-            </button>
-          </div>
+
+          {showPreview && (
+            <div className="card">
+              <div className="flex items-center justify-between mb-4">
+                <img src={LOGO_BASE64} alt="GNA Fast Quote" className="h-10 w-auto" />
+                <h3 className="text-xl font-bold text-brand-red">QUOTE</h3>
+              </div>
+              <div className="flex justify-between text-xs text-gray-500 mb-4">
+                <span>Reference: {reference}</span>
+                <span>Date: {new Date().toLocaleDateString()}</span>
+              </div>
+              <div className="text-sm mb-4 space-y-0.5">
+                <p><strong>Project:</strong> {projectName || 'Untitled project'}</p>
+                <p><strong>Client:</strong> {clientName || '-'}</p>
+                <p><strong>Site:</strong> {siteAddress || '-'}</p>
+              </div>
+              <table className="w-full text-sm mb-4">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b"><th className="py-2 font-medium">Description</th><th className="py-2 font-medium text-right">Amount (ZAR)</th></tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-gray-100"><td className="py-2">Material Cost</td><td className="py-2 text-right">R {materialCost.toFixed(2)}</td></tr>
+                  <tr className="border-b border-gray-100"><td className="py-2">Labour Cost</td><td className="py-2 text-right">R {labourCost.toFixed(2)}</td></tr>
+                  <tr className="border-b border-gray-100"><td className="py-2">Transport / Location Allowance</td><td className="py-2 text-right">R {transport.toFixed(2)}</td></tr>
+                  <tr className="border-b border-gray-100"><td className="py-2">Mark-up ({markup}%)</td><td className="py-2 text-right">R {markupAmount.toFixed(2)}</td></tr>
+                  <tr className="border-b border-gray-100"><td className="py-2">VAT ({vatPercent}%)</td><td className="py-2 text-right">R {vatAmount.toFixed(2)}</td></tr>
+                </tbody>
+              </table>
+              <p className="text-right text-lg font-bold text-brand-red mb-4">Grand Total: R {grandTotal.toFixed(2)}</p>
+
+              <h4 className="text-sm font-semibold mb-1">Assumptions</h4>
+              <ul className="text-xs text-gray-600 list-disc pl-4 mb-3 space-y-0.5">
+                <li>Quote based on uploaded plan and confirmed extracted quantities.</li>
+                <li>Pricing is calculated from the supplied Excel pricing data.</li>
+                <li>Final measurements must be confirmed before work starts.</li>
+              </ul>
+              <h4 className="text-sm font-semibold mb-1">Exclusions</h4>
+              <ul className="text-xs text-gray-600 list-disc pl-4 mb-5 space-y-0.5">
+                <li>Items not visible or not shown on the supplied plan are excluded.</li>
+                <li>Municipal approvals, engineering changes and abnormal site conditions excluded.</li>
+                <li>Professional fees (architect, engineer, council) not included unless stated.</li>
+              </ul>
+              <button className="btn-primary w-full" onClick={generatePdf}>Download PDF Quote</button>
+            </div>
+          )}
         </div>
       )}
     </Layout>

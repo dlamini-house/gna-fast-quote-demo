@@ -19,8 +19,9 @@ export default function Quotes() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-gray-500 border-b">
+                <th className="py-2 font-medium">Reference</th>
                 <th className="py-2 font-medium">Project</th>
-                <th className="py-2 font-medium">Customer</th>
+                <th className="py-2 font-medium">Client</th>
                 <th className="py-2 font-medium">Date</th>
                 <th className="py-2 font-medium">Total</th>
                 <th className="py-2 font-medium">Status</th>
@@ -32,6 +33,7 @@ export default function Quotes() {
                 .reverse()
                 .map((q) => (
                   <tr key={q.id} className="border-b last:border-0">
+                    <td className="py-3 text-gray-500">{q.reference || '-'}</td>
                     <td className="py-3">{q.projectName}</td>
                     <td className="py-3">{q.customerName || '-'}</td>
                     <td className="py-3">{new Date(q.createdAt).toLocaleDateString()}</td>
