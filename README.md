@@ -32,14 +32,34 @@ through the flow and showing stakeholders — not for real users yet.
   full details — company info, NHBRC number and expiry date, and the actual
   uploaded certificate rendered inline — with Accept/Reject right there.
   Search bar removed from every admin page per your request.
-- The pricing engine logic is ported from `GnA_Quote_master.xlsx`: qty x unit
-  price, per-line discount, mark-up %, 15% VAT.
-- **Generate PDF**: the GNA Fast Quote logo now renders large and clear,
+- **New Quote wizard, rebuilt around real pricing**: Upload Plan → Review
+  Extracted Info → Pricing Engine → Add Labour Rate → Generate PDF Quote.
+  Material line items are real rows pulled from
+  `GNA_Constraction_price_list_App_data.xlsx` (Product Code, Description,
+  Quantity, Rate). Labour is **per-trade, not a blanket markup** — each
+  trade (brickwork, plastering, roofing, painting, tiling, plumbing,
+  electrical, general) gets its own rate against a plan-derived basis
+  quantity (m², point count, or days), plus fixed line items (site
+  supervision, project management, subcontractor allowance). Mark-up %,
+  VAT %, and a Transport Allowance are all contractor-editable. The final
+  step shows a live Quote Summary, an "Open PDF-Ready Quote" preview
+  (Reference number, Date, Project/Client/Site, itemized totals,
+  Assumptions and Exclusions), then a real downloadable PDF matching it.
+- **A local database** (`src/data/db.js`): Promise-based `get`/`set`/
+  `list`/`remove` over `localStorage`, collection-and-document shaped like
+  a real document database. Company profile info, the NHBRC certificate
+  (editable from Profile, not just at sign-up), and every generated quote
+  are saved through it. It's written so the calling code doesn't change if
+  this gets swapped for real Firestore later — same function shapes, just
+  Promises instead of local reads.
+- The pricing engine math: `(Material + Labour + Transport) × (1 + markup%)
+  × (1 + VAT%)` — verified against the reference screenshots' numbers.
+- **Generate PDF**: the GNA Fast Quote logo renders large and clear,
   top-left. If you've uploaded your own company logo (at sign-up or in
   Profile), it appears top-right, correctly scaled to its own aspect ratio.
 - **Simulated plan extraction**: uploading a file in New Quote → Step 1
-  shows a brief "Analyzing plan…" loading state, then pre-fills Review Info
-  with plausible demo values, flagged for the contractor to confirm.
+  shows a brief "Analyzing plan…" loading state, then pre-fills the
+  material and labour quantities, flagged for the contractor to confirm.
 - Free trial tracking: 7 days or 3 quotes, whichever comes first.
 
 ## What's deliberately stubbed for this demo
@@ -51,12 +71,20 @@ through the flow and showing stakeholders — not for real users yet.
   pick Master Admin. In production this would come from Firebase Auth
   custom claims, not a dropdown.
 - Plan upload doesn't actually parse the file — the "extraction" is
-  simulated with fixed demo values.
-- No payment gateway call — buying credits/plans just updates local state.
-- Uploaded certificates and logos are stored as base64 in `localStorage`, so
-  very large files could hit the browser's storage limit — fine for
-  demo-sized files, not how a real build would handle them (that's Cloud
-  Storage's job).
+  simulated with fixed demo values pulled from the real price list.
+- No payment gateway call — buying credits/plans just updates local state;
+  the "1 credit" note on the quote summary is illustrative, not enforced.
+- **The local database is per-browser, not shared.** `db.js` uses
+  `localStorage`, so what you save only exists on that one device, in that
+  one browser. It will NOT sync between your laptop and a client's laptop,
+  or survive clearing browser data. A genuinely shared, cross-device
+  database needs a real backend — the project's chosen stack is Firestore
+  (see the project's decisions doc), which is a drop-in replacement for
+  this module's four functions whenever that's wired up.
+- Uploaded certificates, logos and documents are stored as base64, so very
+  large files could hit the browser's storage limit — fine for demo-sized
+  files, not how a real build would handle them (that's Cloud Storage's
+  job).
 - Refreshing after clearing browser storage resets everything.
 
 ## Run it locally
