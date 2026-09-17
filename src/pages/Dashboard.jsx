@@ -1,12 +1,14 @@
 import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
-import { useAppState, trialStatus } from '../data/store'
+import { useAppState, trialStatus, currentUser } from '../data/store'
 
 export default function Dashboard() {
   const [state] = useAppState()
+  const user = currentUser(state)
   const trial = trialStatus(state)
-  const draftCount = state.quotes.filter((q) => q.status === 'draft').length
-  const completedCount = state.quotes.filter((q) => q.status === 'completed').length
+  const myQuotes = user ? state.quotes.filter((q) => q.ownerEmail === user.email) : state.quotes
+  const draftCount = myQuotes.filter((q) => q.status === 'draft').length
+  const completedCount = myQuotes.filter((q) => q.status === 'completed').length
 
   return (
     <Layout title="Dashboard">
@@ -31,10 +33,18 @@ export default function Dashboard() {
         </div>
         <div className="card">
           <p className="text-sm text-gray-500 mb-1">Quotes</p>
-          <p className="text-2xl font-bold">{state.quotes.length} total</p>
+          <p className="text-2xl font-bold">{myQuotes.length} total</p>
           <p className="text-sm text-gray-500">{draftCount} draft &middot; {completedCount} completed</p>
         </div>
       </div>
+
+      {user && (
+        <div className="card mb-8">
+          <p className="text-sm text-gray-500">
+            Signed in as <strong>{user.contact}</strong> &middot; {user.company}
+          </p>
+        </div>
+      )}
 
       <div className="card mb-8 flex items-center justify-between">
         <div>
@@ -50,11 +60,11 @@ export default function Dashboard() {
 
       <div className="card">
         <h2 className="text-lg font-semibold mb-4">Recent activity</h2>
-        {state.quotes.length === 0 ? (
+        {myQuotes.length === 0 ? (
           <p className="text-sm text-gray-500">No quotes yet. Create your first one to see it here.</p>
         ) : (
           <ul className="divide-y divide-gray-100">
-            {state.quotes
+            {myQuotes
               .slice()
               .reverse()
               .slice(0, 5)

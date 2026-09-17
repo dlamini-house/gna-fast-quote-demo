@@ -10,7 +10,7 @@ import {
   DEMO_LABOUR_RATES,
   COMPANY_LEGAL_LINE
 } from '../data/mockData'
-import { useAppState, canGenerateQuote } from '../data/store'
+import { useAppState, canGenerateQuote, currentUser } from '../data/store'
 import { LOGO_BASE64 } from '../data/logo'
 import { db } from '../data/db'
 
@@ -24,6 +24,7 @@ export default function NewQuote() {
   const [state, setState] = useAppState()
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
+  const user = currentUser(state)
 
   // Step 0
   const [projectName, setProjectName] = useState('')
@@ -203,14 +204,16 @@ export default function NewQuote() {
         siteAddress,
         total: grandTotal,
         status: 'completed',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        ownerEmail: user?.email || null,
+        ownerCompany: user?.company || null
       }
       setState((s) => ({ ...s, quotes: [...s.quotes, newQuote] }))
       db.set('quotes', String(newQuote.id), newQuote)
       navigate('/quotes')
     }
 
-    if (state.companyLogo?.dataUrl) {
+    if (user?.logoDataUrl) {
       const img = new Image()
       img.onload = () => {
         const canvas = document.createElement('canvas')
@@ -221,7 +224,7 @@ export default function NewQuote() {
         finishAndSave({ dataUrl: canvas.toDataURL('image/png'), width: img.naturalWidth, height: img.naturalHeight })
       }
       img.onerror = () => finishAndSave(null)
-      img.src = state.companyLogo.dataUrl
+      img.src = user.logoDataUrl
     } else {
       finishAndSave(null)
     }
@@ -481,6 +484,9 @@ export default function NewQuote() {
             <div className="card">
               <div className="flex items-center justify-between mb-4">
                 <img src={LOGO_BASE64} alt="GNA Fast Quote" className="h-10 w-auto" />
+                {user?.logoDataUrl && (
+                  <img src={user.logoDataUrl} alt={`${user.company} logo`} className="h-10 max-w-[110px] object-contain" />
+                )}
                 <h3 className="text-xl font-bold text-brand-red">QUOTE</h3>
               </div>
               <div className="flex justify-between text-xs text-gray-500 mb-4">

@@ -13,11 +13,24 @@ import VerifiedUsers from './pages/admin/VerifiedUsers'
 import RejectedProfiles from './pages/admin/RejectedProfiles'
 import AdminUsersList from './pages/admin/AdminUsersList'
 import CreateAdminUser from './pages/admin/CreateAdminUser'
-import { useAppState, isMasterAdmin } from './data/store'
+import { useAppState, isMasterAdmin, currentAdmin, currentUser } from './data/store'
 
 function RequireMasterAdmin({ children }) {
   const [state] = useAppState()
+  if (!currentAdmin(state)) return <Navigate to="/admin-sign-in" replace />
   if (!isMasterAdmin(state)) return <Navigate to="/admin/potential" replace />
+  return children
+}
+
+function RequireAdmin({ children }) {
+  const [state] = useAppState()
+  if (!currentAdmin(state)) return <Navigate to="/admin-sign-in" replace />
+  return children
+}
+
+function RequireUser({ children }) {
+  const [state] = useAppState()
+  if (!currentUser(state)) return <Navigate to="/" replace />
   return children
 }
 
@@ -28,19 +41,19 @@ export default function App() {
       <Route path="/sign-up" element={<SignUp />} />
       <Route path="/admin-sign-in" element={<AdminSignIn />} />
 
-      {/* Contractor portal */}
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/new-quote" element={<NewQuote />} />
-      <Route path="/quotes" element={<Quotes />} />
-      <Route path="/pricing" element={<PricingCredits />} />
-      <Route path="/profile" element={<Profile />} />
+      {/* Contractor portal — requires a signed-in, admin-verified account */}
+      <Route path="/dashboard" element={<RequireUser><Dashboard /></RequireUser>} />
+      <Route path="/new-quote" element={<RequireUser><NewQuote /></RequireUser>} />
+      <Route path="/quotes" element={<RequireUser><Quotes /></RequireUser>} />
+      <Route path="/pricing" element={<RequireUser><PricingCredits /></RequireUser>} />
+      <Route path="/profile" element={<RequireUser><Profile /></RequireUser>} />
       <Route path="/terms" element={<TermsConditions />} />
 
-      {/* Admin portal */}
-      <Route path="/admin" element={<PotentialUsers />} />
-      <Route path="/admin/potential" element={<PotentialUsers />} />
-      <Route path="/admin/verified" element={<VerifiedUsers />} />
-      <Route path="/admin/rejected" element={<RejectedProfiles />} />
+      {/* Admin portal — requires a signed-in admin */}
+      <Route path="/admin" element={<RequireAdmin><PotentialUsers /></RequireAdmin>} />
+      <Route path="/admin/potential" element={<RequireAdmin><PotentialUsers /></RequireAdmin>} />
+      <Route path="/admin/verified" element={<RequireAdmin><VerifiedUsers /></RequireAdmin>} />
+      <Route path="/admin/rejected" element={<RequireAdmin><RejectedProfiles /></RequireAdmin>} />
       <Route
         path="/admin/admins"
         element={

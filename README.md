@@ -5,33 +5,48 @@ authentication, no cloud dependency. All data (credits, trial status, saved
 quotes) lives in the browser's `localStorage`, so it's meant for walking
 through the flow and showing stakeholders — not for real users yet.
 
-## What's in here
+## Signing in — how the demo's mini database works
 
-- **Sign in** (`/`) — real GNA Fast Quote logo prominent on both the left
-  hero panel and the form card. Any email/password (or none) gets you in —
-  see below. Small link at the bottom for the admin side.
-- **Sign up** (`/sign-up`) — logo at the top, full registration form
-  including an **NHBRC Expiry Date** field (DD/MM/YYYY), a **real file
-  upload** for the NHBRC certificate (PDF, JPG or PNG, max 10MB), an
-  optional **company logo upload** (PNG/JPEG/WEBP/SVG, max 5MB — this is
-  what appears on your generated quote PDFs), and a Terms & Conditions link
-  that opens the **exact, full legal text** from
-  `Terms_and_conditions_of_use_.docx` in an iframe. Submitting creates a
-  real pending application in the admin portal, certificate included.
-- **Admin sign-in** (`/admin-sign-in`) — demo-only picker between the three
-  seeded admin accounts. Whichever you pick decides what you can see next:
+There is still no real backend, but sign-in is no longer a blind pass-through.
+The demo now has a small local "user directory" (built on the existing
+applications list) with real approve → sign-in gating:
+
+- **Sign up** (`/sign-up`) creates a real account: full name, email,
+  **password**, company info, NHBRC number/expiry, NHBRC certificate upload,
+  and an optional company logo upload — all saved as one record, status
+  `pending`.
+- An **admin must approve it** (Potential Users → View → Accept) before that
+  email/password can sign in. A pending or rejected account is told exactly
+  that if it tries.
+- Once verified, the contractor can **sign in for real** at `/` with the
+  email and password they registered with. Routes like `/dashboard`,
+  `/new-quote`, `/quotes`, `/pricing` and `/profile` now redirect to Sign In
+  if nobody's signed in.
+- Every signed-in contractor only ever sees **their own** quotes and **their
+  own** uploaded logo/certificate — nothing global is shared between
+  accounts. Two ready-to-use verified demo logins:
+  - `david@dcdeng.co.za` / `Contractor2026` (DCD Engineering)
+  - `anel@avdesigns.co.za` / `Contractor2026` (AV Designs)
+  (Both can be given their own logo from **Profile** to see it reflected on
+  their next generated quote.)
+- **Admin sign-in** (`/admin-sign-in`) is a real email/password form checked
+  against the seeded admin accounts (demo password for all of them:
+  `GnaAdmin2026`), with a quick-fill panel underneath for convenience:
   - `gavine@gnafastquote.co.za` — **Master Admin**, full access.
   - `lamu@dlaminihouse.co.za` / `support@gnafastquote.co.za` — **Admin**,
     can review/verify contractors but the "Admins" tab is hidden entirely
     (and the route itself redirects away if visited directly).
-- **Contractor portal**: Dashboard, New Quote (5-step wizard), Quotes list,
-  Pricing & Credits, Profile (now includes the company logo upload too),
-  Terms & Conditions (same full document as sign-up).
+  - A Master Admin can create more admins from **Admins → Add Admin User**,
+    setting that new admin's own sign-in password.
+- **Contractor portal**: Dashboard, New Quote (5-step wizard), Quotes list
+  (scoped to the signed-in account), Pricing & Credits, Profile (company
+  info + NHBRC certificate + company logo, all tied to that account),
+  Terms & Conditions.
 - **Admin portal**: Potential Users, Verified Users, Rejected Profiles,
   Admins (Master Admin only). Clicking **View** on any applicant opens their
-  full details — company info, NHBRC number and expiry date, and the actual
-  uploaded certificate rendered inline — with Accept/Reject right there.
-  Search bar removed from every admin page per your request.
+  full details — company info, NHBRC number and expiry date, the uploaded
+  certificate rendered inline, and their uploaded company logo — with
+  Accept/Reject right there.
 - **New Quote wizard, rebuilt around real pricing**: Upload Plan → Review
   Extracted Info → Pricing Engine → Add Labour Rate → Generate PDF Quote.
   Material line items are real rows pulled from
@@ -47,11 +62,15 @@ through the flow and showing stakeholders — not for real users yet.
   Assumptions and Exclusions), then a real downloadable PDF matching it.
 - **A local database** (`src/data/db.js`): Promise-based `get`/`set`/
   `list`/`remove` over `localStorage`, collection-and-document shaped like
-  a real document database. Company profile info, the NHBRC certificate
-  (editable from Profile, not just at sign-up), and every generated quote
-  are saved through it. It's written so the calling code doesn't change if
-  this gets swapped for real Firestore later — same function shapes, just
-  Promises instead of local reads.
+  a real document database. Every generated quote is saved through it,
+  tagged with the owner's email so it's easy to see how this maps onto a
+  real per-user `quotes` collection later. It's written so the calling code
+  doesn't change if this gets swapped for real Firestore later — same
+  function shapes, just Promises instead of local reads. The user
+  directory itself (accounts, passwords, logos, certificates) lives in the
+  main app state (`src/data/store.js`) rather than `db.js`, so every page
+  updates instantly without an async round-trip — same `localStorage`
+  persistence underneath either way.
 - The pricing engine math: `(Material + Labour + Transport) × (1 + markup%)
   × (1 + VAT%)` — verified against the reference screenshots' numbers.
 - **Generate PDF**: the GNA Fast Quote logo renders large and clear,
@@ -64,12 +83,11 @@ through the flow and showing stakeholders — not for real users yet.
 
 ## What's deliberately stubbed for this demo
 
-- Sign in doesn't check credentials. Sign up *does* create a real record,
-  but nothing gates contractor access based on verification status — a
-  rejected or still-pending contractor can still use the Dashboard.
-- The admin "sign-in" is a picker, not real authentication — anyone can
-  pick Master Admin. In production this would come from Firebase Auth
-  custom claims, not a dropdown.
+- Passwords are stored and compared in plain text in `localStorage` — fine
+  for a client-facing demo on your own machine, but obviously not how real
+  authentication would work. A real build would use Firebase Auth (or
+  similar) for hashing, sessions and password resets, not a hand-rolled
+  check like this.
 - Plan upload doesn't actually parse the file — the "extraction" is
   simulated with fixed demo values pulled from the real price list.
 - No payment gateway call — buying credits/plans just updates local state;

@@ -74,6 +74,20 @@ export default function ApplicantDetailModal({ applicant, onClose, onApprove, on
             )}
           </div>
 
+          <div>
+            <h3 className="text-xs font-semibold text-gray-700 mb-2">&#127912; Company Logo</h3>
+            {applicant.logoDataUrl ? (
+              <div className="flex items-center gap-3 bg-gray-50 border rounded-lg p-3">
+                <img src={applicant.logoDataUrl} alt={`${applicant.company} logo`} className="h-12 object-contain" />
+                <span className="text-sm text-gray-600">{applicant.logoFileName}</span>
+              </div>
+            ) : (
+              <div className="bg-gray-50 border border-dashed rounded-lg p-4 text-sm text-gray-400 text-center">
+                No logo uploaded for this demo record.
+              </div>
+            )}
+          </div>
+
           {applicant.status === 'rejected' && applicant.reason && (
             <div>
               <h3 className="text-xs font-semibold text-gray-700 mb-2">&#10060; Rejection Reason</h3>

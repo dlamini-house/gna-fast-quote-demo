@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AdminLayout from '../../components/AdminLayout'
-import { useAppState, addAdminUser } from '../../data/store'
+import { useAppState, addAdminUser, SEED_ADMIN_PASSWORD } from '../../data/store'
 
 const ROLES = [
   { id: 'admin', title: 'Admin', desc: 'Reviews and verifies contractor registrations. Cannot view, add, edit or delete other admins.' },
@@ -14,10 +14,16 @@ export default function CreateAdminUser() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState('admin')
+  const [password, setPassword] = useState(SEED_ADMIN_PASSWORD)
 
   function sendInvite() {
     const roleTitle = role === 'master' ? 'Master Admin' : 'Admin'
-    addAdminUser(setState, { name: name || 'Unnamed admin', email, role: roleTitle })
+    addAdminUser(setState, {
+      name: name || 'Unnamed admin',
+      email,
+      password: password || SEED_ADMIN_PASSWORD,
+      role: roleTitle
+    })
     navigate('/admin/admins')
   }
 
@@ -38,6 +44,16 @@ export default function CreateAdminUser() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Sign-in Password</label>
+        <input
+          className="w-full border rounded-lg px-3 py-2 mb-1"
+          placeholder="Set a password for this admin"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <p className="text-xs text-gray-400 mb-5">
+          This is what {name || 'the new admin'} will use to sign in on the Admin Portal.
+        </p>
         <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
         <div className="grid grid-cols-1 gap-3 mb-6">
           {ROLES.map((r) => (

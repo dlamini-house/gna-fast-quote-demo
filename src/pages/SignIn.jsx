@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { COMPANY_LEGAL_LINE } from '../data/mockData'
+import { useAppState, findUserAccount, setCurrentUser } from '../data/store'
 
 const FEATURES = [
   { icon: '\u{1F4CB}', label: 'Upload Architectural Plans' },
@@ -10,13 +11,32 @@ const FEATURES = [
 ]
 
 export default function SignIn() {
+  const [state, setState] = useAppState()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState('')
 
   function handleSignIn(e) {
     e.preventDefault()
+    const account = findUserAccount(state, email)
+
+    if (!account || account.password !== password) {
+      setError('Invalid email or password.')
+      return
+    }
+    if (account.status === 'pending') {
+      setError('Your registration is still pending admin approval. You’ll be able to sign in once it’s verified.')
+      return
+    }
+    if (account.status === 'rejected') {
+      setError(`Your registration was not approved.${account.reason ? ` ${account.reason}` : ''}`)
+      return
+    }
+
+    setError('')
+    setCurrentUser(setState, account.email)
     navigate('/dashboard')
   }
 
@@ -110,6 +130,8 @@ export default function SignIn() {
               </button>
             </div>
 
+            {error && <p className="text-sm text-brand-red mb-4">{error}</p>}
+
             <button
               type="submit"
               className="w-full bg-brand-red text-white rounded-lg py-3 font-semibold hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
@@ -117,6 +139,11 @@ export default function SignIn() {
               Sign In <span>&rarr;</span>
             </button>
           </form>
+
+          <p className="text-center text-[11px] text-gray-400 mt-4">
+            Demo tip: sign up for an account, have an admin approve it, then sign in here with the
+            email and password you registered with.
+          </p>
 
           <p className="text-center text-sm text-gray-600 mt-6">
             Don&apos;t have an account?{' '}

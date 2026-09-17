@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAppState, submitApplication, setCompanyLogo } from '../data/store'
+import { useAppState, submitApplication, findUserAccount } from '../data/store'
 import { COMPANY_LEGAL_LINE } from '../data/mockData'
 
 export default function SignUp() {
-  const [, setState] = useAppState()
+  const [state, setState] = useAppState()
   const navigate = useNavigate()
 
   const [fullName, setFullName] = useState('')
@@ -53,8 +53,12 @@ export default function SignUp() {
 
   function handleSubmit(e) {
     e.preventDefault()
-    if (!fullName || !email || !companyName || !nhbrc || !agree) {
-      setError('Please fill in the required fields and accept the Terms & Conditions.')
+    if (!fullName || !email || !companyName || !nhbrc || !password || !agree) {
+      setError('Please fill in the required fields, set a password and accept the Terms & Conditions.')
+      return
+    }
+    if (findUserAccount(state, email)) {
+      setError('An account with that email already exists. Try signing in instead.')
       return
     }
     const nhbrcExpiry = expiryDay && expiryMonth && expiryYear
@@ -63,6 +67,7 @@ export default function SignUp() {
     submitApplication(setState, {
       contact: fullName,
       email,
+      password,
       company: companyName,
       companyReg,
       companyAddress,
@@ -70,11 +75,11 @@ export default function SignUp() {
       nhbrcExpiry,
       certificateFileName: certFile?.name || null,
       certificateDataUrl: certFile?.dataUrl || null,
-      certificateType: certFile?.type || null
+      certificateType: certFile?.type || null,
+      logoFileName: logoFile?.name || null,
+      logoDataUrl: logoFile?.dataUrl || null,
+      logoType: logoFile?.type || null
     })
-    if (logoFile) {
-      setCompanyLogo(setState, logoFile)
-    }
     setSubmitted(true)
   }
 
@@ -96,7 +101,8 @@ export default function SignUp() {
             <p className="text-sm text-gray-500 mb-6">
               Thanks, {fullName.split(' ')[0] || 'there'} — your registration for{' '}
               <strong>{companyName}</strong> has been sent to a GNA Fast Quote admin for review.
-              You'll be notified once your account is approved.
+              Once an admin approves it, sign in here with <strong>{email}</strong> and the password
+              you just set.
             </p>
             <button className="btn-primary" onClick={() => navigate('/')}>
               Back to Sign In
@@ -230,7 +236,7 @@ export default function SignUp() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   className="w-full border rounded-lg px-3 py-2.5 pr-9"
-                  placeholder="Enter your password"
+                  placeholder="Choose a password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -238,6 +244,9 @@ export default function SignUp() {
                   &#128065;
                 </button>
               </div>
+              <p className="text-xs text-gray-400 mt-1">
+                This is the password you'll use to sign in once an admin approves your account.
+              </p>
             </div>
 
             <label className="flex items-center gap-2 text-sm text-gray-600 mb-6">

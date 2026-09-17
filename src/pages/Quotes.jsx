@@ -1,14 +1,16 @@
 import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
-import { useAppState } from '../data/store'
+import { useAppState, currentUser } from '../data/store'
 
 export default function Quotes() {
   const [state] = useAppState()
+  const user = currentUser(state)
+  const myQuotes = user ? state.quotes.filter((q) => q.ownerEmail === user.email) : state.quotes
 
   return (
     <Layout title="Quotes">
       <div className="card">
-        {state.quotes.length === 0 ? (
+        {myQuotes.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-sm text-gray-500 mb-4">No quotes yet.</p>
             <Link to="/new-quote" className="btn-primary">
@@ -28,7 +30,7 @@ export default function Quotes() {
               </tr>
             </thead>
             <tbody>
-              {state.quotes
+              {myQuotes
                 .slice()
                 .reverse()
                 .map((q) => (

@@ -1,5 +1,6 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { COMPANY_LEGAL_LINE } from '../data/mockData'
+import { useAppState, currentUser, signOutUser } from '../data/store'
 
 const links = [
   { to: '/dashboard', label: 'Dashboard', icon: '\u2302', end: true },
@@ -11,6 +12,15 @@ const links = [
 ]
 
 export default function Sidebar() {
+  const [state, setState] = useAppState()
+  const navigate = useNavigate()
+  const user = currentUser(state)
+
+  function handleSignOut() {
+    signOutUser(setState)
+    navigate('/')
+  }
+
   return (
     <aside className="w-64 shrink-0 bg-navy-900 text-white flex flex-col min-h-screen">
       <div className="px-6 py-6 flex flex-col items-center">
@@ -18,6 +28,12 @@ export default function Sidebar() {
           <img src="./logo.jpg" alt="GNA Fast Quote" className="h-24 w-auto" />
         </div>
         <p className="text-[10px] text-gray-400 text-center mt-2 leading-snug px-2">{COMPANY_LEGAL_LINE}</p>
+        {user && (
+          <div className="w-full mt-3 bg-navy-800 rounded-lg px-3 py-2 text-center">
+            <p className="text-xs font-semibold truncate">{user.company}</p>
+            <p className="text-[10px] text-gray-400 truncate">{user.email}</p>
+          </div>
+        )}
       </div>
       <nav className="flex-1 px-3 space-y-1">
         {links.map((l) => (
@@ -39,13 +55,13 @@ export default function Sidebar() {
         ))}
       </nav>
       <div className="px-3 pb-6">
-        <NavLink to="/" className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-300 hover:bg-navy-800 hover:text-white transition-colors">
+        <button
+          onClick={handleSignOut}
+          className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-300 hover:bg-navy-800 hover:text-white transition-colors"
+        >
           <span className="text-base leading-none w-4 text-center">&#8674;</span>
-          Switch role / Logout
-        </NavLink>
-        <p className="text-[11px] text-gray-500 mt-4 px-3">
-          Local demo &middot; no sign-in required
-        </p>
+          Sign out
+        </button>
       </div>
     </aside>
   )

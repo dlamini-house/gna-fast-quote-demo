@@ -1,6 +1,20 @@
 import Sidebar from './Sidebar'
+import { useAppState, currentUser } from '../data/store'
+
+function initials(name) {
+  if (!name) return '?'
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('')
+}
 
 export default function Layout({ title, children }) {
+  const [state] = useAppState()
+  const user = currentUser(state)
+
   return (
     <div className="flex min-h-screen">
       <Sidebar />
@@ -9,9 +23,9 @@ export default function Layout({ title, children }) {
           <h1 className="text-2xl font-semibold">{title}</h1>
           <div className="flex items-center gap-3 text-sm text-gray-600">
             <span className="h-9 w-9 rounded-full bg-navy-800 text-white flex items-center justify-center text-xs font-semibold">
-              JS
+              {initials(user?.contact)}
             </span>
-            <span>John Smith</span>
+            <span>{user?.contact || 'Not signed in'}</span>
           </div>
         </header>
         <main className="flex-1 p-8">{children}</main>
