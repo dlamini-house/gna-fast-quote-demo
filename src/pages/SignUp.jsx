@@ -12,6 +12,7 @@ export default function SignUp() {
   const [email, setEmail] = useState('')
   const [companyName, setCompanyName] = useState('')
   const [companyReg, setCompanyReg] = useState('')
+  const [vatNumber, setVatNumber] = useState('')
   const [companyAddress, setCompanyAddress] = useState('')
   const [nhbrc, setNhbrc] = useState('')
   const [expiryDay, setExpiryDay] = useState('')
@@ -71,6 +72,7 @@ export default function SignUp() {
       password,
       company: companyName,
       companyReg,
+      vatNumber,
       companyAddress,
       nhbrc,
       nhbrcExpiry,
@@ -147,9 +149,17 @@ export default function SignUp() {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Company Name</label>
               <input className="w-full border rounded-lg px-3 py-2.5" placeholder="Enter your company name" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
             </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Company Registration</label>
-              <input className="w-full border rounded-lg px-3 py-2.5" placeholder="Enter your company registration number" value={companyReg} onChange={(e) => setCompanyReg(e.target.value)} />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Company Registration</label>
+                <input className="w-full border rounded-lg px-3 py-2.5" placeholder="Enter your company registration number" value={companyReg} onChange={(e) => setCompanyReg(e.target.value)} />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  VAT Number <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input className="w-full border rounded-lg px-3 py-2.5" placeholder="Enter your VAT number" value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} />
+              </div>
             </div>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Company Address</label>

@@ -98,41 +98,74 @@ export default function NewQuote() {
     const doc = new jsPDF()
 
     function finishAndSave(companyLogoImg) {
-      doc.addImage(LOGO_BASE64, 'JPEG', 14, 8, 60, 32)
-      doc.setFontSize(7.5)
+      // GNA logo: kept small and to the top-left — the contractor's own
+      // branding is the bigger, more prominent logo on this quote.
+      const gnaW = 42
+      const gnaH = 22
+      doc.addImage(LOGO_BASE64, 'JPEG', 14, 8, gnaW, gnaH)
+      doc.setFontSize(7)
       doc.setTextColor(90, 90, 90)
-      doc.text(COMPANY_LEGAL_LINE, 14, 44)
+      doc.text(COMPANY_LEGAL_LINE, 14, 8 + gnaH + 4)
 
+      let companyLogoBottom = 8
       if (companyLogoImg) {
-        const maxW = 40
-        const maxH = 24
+        const maxW = 58
+        const maxH = 32
         const ratio = Math.min(maxW / companyLogoImg.width, maxH / companyLogoImg.height)
         const w = companyLogoImg.width * ratio
         const h = companyLogoImg.height * ratio
         doc.addImage(companyLogoImg.dataUrl, 'PNG', 196 - w, 8, w, h)
+        companyLogoBottom = 8 + h
       }
 
-      doc.setFontSize(18)
-      doc.setTextColor(228, 32, 44)
-      doc.text('QUOTE', 196, 40, { align: 'right' })
-
+      const headerBottom = Math.max(8 + gnaH, companyLogoBottom) + 8
       doc.setDrawColor(228, 32, 44)
       doc.setLineWidth(0.6)
-      doc.line(14, 48, 196, 48)
+      doc.line(14, headerBottom, 196, headerBottom)
+
+      const infoTop = headerBottom + 9
+      doc.setFontSize(18)
+      doc.setTextColor(228, 32, 44)
+      doc.text('QUOTE', 196, infoTop, { align: 'right' })
 
       doc.setFontSize(10)
       doc.setTextColor(120, 120, 120)
-      doc.text(`Reference: ${reference}`, 196, 55, { align: 'right' })
-      doc.text(`Date: ${new Date().toLocaleDateString()}`, 196, 61, { align: 'right' })
+      doc.text(`Reference: ${reference}`, 196, infoTop + 7, { align: 'right' })
+      doc.text(`Date: ${new Date().toLocaleDateString()}`, 196, infoTop + 13, { align: 'right' })
 
       doc.setFontSize(11)
       doc.setTextColor(40, 40, 40)
-      doc.text(`Project: ${projectName || 'Untitled project'}`, 14, 58)
-      doc.text(`Client: ${clientName || '-'}`, 14, 65)
-      doc.text(`Site: ${siteAddress || '-'}`, 14, 72)
+      doc.text(`Project: ${projectName || 'Untitled project'}`, 14, infoTop)
+      doc.text(`Client: ${clientName || '-'}`, 14, infoTop + 7)
+      doc.text(`Site: ${siteAddress || '-'}`, 14, infoTop + 14)
 
-      let y = 86
+      // "Quoted by" block — the contractor's own company details, required
+      // on the quote alongside their logo.
+      let quotedByY = infoTop + 22
+      doc.setFontSize(8.5)
+      doc.setTextColor(140, 140, 140)
+      doc.text('Quoted by', 196, quotedByY, { align: 'right' })
+      quotedByY += 5
+      doc.setFontSize(10.5)
+      doc.setTextColor(40, 40, 40)
+      doc.text(user?.company || 'Independent Contractor', 196, quotedByY, { align: 'right' })
+      doc.setFontSize(8.5)
+      doc.setTextColor(100, 100, 100)
+      if (user?.companyAddress) {
+        const addressLines = doc.splitTextToSize(user.companyAddress, 95)
+        addressLines.forEach((line) => {
+          quotedByY += 4.5
+          doc.text(line, 196, quotedByY, { align: 'right' })
+        })
+      }
+      if (user?.email) {
+        quotedByY += 4.5
+        doc.text(user.email, 196, quotedByY, { align: 'right' })
+      }
+
+      let y = Math.max(infoTop + 14, quotedByY) + 14
       doc.setFontSize(12)
+      doc.setTextColor(40, 40, 40)
       doc.text('Description', 14, y)
       doc.text('Amount (ZAR)', 196, y, { align: 'right' })
       y += 4
@@ -482,21 +515,29 @@ export default function NewQuote() {
 
           {showPreview && (
             <div className="card">
-              <div className="flex items-center justify-between mb-4">
-                <img src={LOGO_BASE64} alt="GNA Fast Quote" className="h-10 w-auto" />
-                {user?.logoDataUrl && (
-                  <img src={user.logoDataUrl} alt={`${user.company} logo`} className="h-10 max-w-[110px] object-contain" />
-                )}
-                <h3 className="text-xl font-bold text-brand-red">QUOTE</h3>
+              <div className="flex items-start justify-between mb-4">
+                <img src={LOGO_BASE64} alt="GNA Fast Quote" className="h-7 w-auto" />
+                <div className="flex flex-col items-end gap-2">
+                  {user?.logoDataUrl && (
+                    <img src={user.logoDataUrl} alt={`${user.company} logo`} className="h-16 max-w-[130px] object-contain" />
+                  )}
+                  <h3 className="text-xl font-bold text-brand-red">QUOTE</h3>
+                </div>
               </div>
-              <div className="flex justify-between text-xs text-gray-500 mb-4">
-                <span>Reference: {reference}</span>
-                <span>Date: {new Date().toLocaleDateString()}</span>
-              </div>
-              <div className="text-sm mb-4 space-y-0.5">
-                <p><strong>Project:</strong> {projectName || 'Untitled project'}</p>
-                <p><strong>Client:</strong> {clientName || '-'}</p>
-                <p><strong>Site:</strong> {siteAddress || '-'}</p>
+              <div className="flex justify-between items-start text-xs text-gray-500 mb-4">
+                <div className="space-y-0.5 text-sm text-gray-700">
+                  <p><strong>Project:</strong> {projectName || 'Untitled project'}</p>
+                  <p><strong>Client:</strong> {clientName || '-'}</p>
+                  <p><strong>Site:</strong> {siteAddress || '-'}</p>
+                </div>
+                <div className="text-right space-y-0.5">
+                  <p>Reference: {reference}</p>
+                  <p>Date: {new Date().toLocaleDateString()}</p>
+                  <p className="text-gray-400 mt-1.5">Quoted by</p>
+                  <p className="font-semibold text-gray-700">{user?.company || 'Independent Contractor'}</p>
+                  {user?.companyAddress && <p className="max-w-[180px]">{user.companyAddress}</p>}
+                  {user?.email && <p>{user.email}</p>}
+                </div>
               </div>
               <table className="w-full text-sm mb-4">
                 <thead>

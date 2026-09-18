@@ -37,6 +37,7 @@ export default function ApplicantDetailModal({ applicant, onClose, onApprove, on
             <div className="text-sm space-y-1">
               <div className="flex justify-between"><span className="text-gray-500">Company Name</span><span>{applicant.company}</span></div>
               <div className="flex justify-between"><span className="text-gray-500">Registration No.</span><span>{applicant.companyReg || '—'}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">VAT Number</span><span>{applicant.vatNumber || '—'}</span></div>
               <div className="flex justify-between gap-6"><span className="text-gray-500 shrink-0">Address</span><span className="text-right">{applicant.companyAddress || '—'}</span></div>
             </div>
           </div>
