@@ -13,8 +13,9 @@ import {
 import { useAppState, canGenerateQuote, currentUser } from '../data/store'
 import { LOGO_BASE64 } from '../data/logo'
 import { db } from '../data/db'
+import { SUPPLIERS } from '../data/suppliers'
 
-const STEPS = ['Upload Plan', 'Review Extracted Info', 'Pricing Engine', 'Add Labour Rate', 'Generate PDF Quote']
+const STEPS = ['Select Supplier', 'Upload Plan', 'Review Extracted Info', 'Pricing Engine', 'Add Labour Rate', 'Generate PDF Quote']
 
 function unitLabel(unitId) {
   return UNIT_OPTIONS.find((u) => u.id === unitId)?.label || unitId
@@ -26,7 +27,11 @@ export default function NewQuote() {
   const [step, setStep] = useState(0)
   const user = currentUser(state)
 
-  // Step 0
+  // Step 0: which supplier's price list this quote's materials come from
+  const [supplier, setSupplier] = useState(null)
+  const supplierInfo = SUPPLIERS.find((s) => s.slug === supplier) || null
+
+  // Step 1
   const [projectName, setProjectName] = useState('')
   const [clientName, setClientName] = useState('')
   const [siteAddress, setSiteAddress] = useState('')
@@ -39,12 +44,15 @@ export default function NewQuote() {
   const [priceListInfo, setPriceListInfo] = useState(null) // uploaded BUCO price list metadata, if any
   const [priceOverrides, setPriceOverrides] = useState(null) // code -> { price, description } from that upload
 
-  // Pull in whatever price list an admin has uploaded (Admin → Price Lists).
-  // Materials are matched by their product code, so an admin replacing the
-  // BUCO list changes the rates a contractor sees here without any other
-  // code path changing.
+  // Pull in whatever price list an admin has uploaded for the chosen supplier
+  // (Admin → Price Lists). Materials are matched by their product code, so
+  // an admin replacing that supplier's list changes the rates a contractor
+  // sees here without any other code path changing.
   useEffect(() => {
-    db.get('priceLists', 'buco').then((record) => {
+    if (!supplier) return
+    setPriceOverrides(null)
+    setPriceListInfo(null)
+    db.get('priceLists', supplier).then((record) => {
       if (!record?.items?.length) return
       const map = {}
       record.items.forEach((it) => {
@@ -53,7 +61,7 @@ export default function NewQuote() {
       setPriceOverrides(map)
       setPriceListInfo(record)
     })
-  }, [])
+  }, [supplier])
 
   function withPriceListRates(items) {
     if (!priceOverrides) return items
@@ -93,7 +101,7 @@ export default function NewQuote() {
       setMaterials(withPriceListRates(MOCK_EXTRACTED_MATERIALS.map((m) => ({ ...m }))))
       setExtracting(false)
       setWasExtracted(true)
-      setStep(1)
+      setStep(2)
     }, 1400)
   }
 
@@ -325,10 +333,61 @@ export default function NewQuote() {
         ))}
       </div>
 
-      {/* Step 0: Upload Plan */}
+      {/* Step 0: Select Supplier */}
       {step === 0 && (
+        <div className="card max-w-2xl">
+          <h2 className="text-lg font-semibold mb-1">Select Supplier for materials</h2>
+          <p className="text-sm text-gray-500 mb-6">
+            Choose which supplier's price list this quote's material rates will be pulled from.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+            {SUPPLIERS.map((s) => {
+              const isSelected = supplier === s.slug
+              return (
+                <button
+                  key={s.slug}
+                  type="button"
+                  disabled={!s.active}
+                  onClick={() => s.active && setSupplier(s.slug)}
+                  className={`group relative h-24 border rounded-xl p-3 flex flex-col items-center justify-center gap-2 transition-colors ${
+                    !s.active
+                      ? 'opacity-40 grayscale cursor-not-allowed border-gray-200'
+                      : isSelected
+                      ? 'border-brand-blue bg-blue-50 cursor-pointer'
+                      : 'border-gray-200 hover:border-brand-blue cursor-pointer'
+                  }`}
+                >
+                  <img src={s.src} alt={s.name} className="max-h-10 max-w-full object-contain" />
+                  <span className="text-xs text-gray-500">{s.name}</span>
+                  {!s.active && (
+                    <span className="pointer-events-none absolute inset-0 hidden group-hover:flex items-center justify-center bg-black/60 rounded-xl">
+                      <span className="text-white text-[11px] font-medium px-2 text-center">Currently Unavailable</span>
+                    </span>
+                  )}
+                  {isSelected && (
+                    <span className="absolute top-1.5 right-1.5 h-5 w-5 rounded-full bg-brand-blue text-white text-xs flex items-center justify-center">
+                      &#10003;
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+          <button className="btn-primary" disabled={!supplier} onClick={() => setStep(1)}>
+            Next: Upload Plan
+          </button>
+        </div>
+      )}
+
+      {/* Step 1: Upload Plan */}
+      {step === 1 && (
         <div className="card max-w-xl">
-          <h2 className="text-lg font-semibold mb-4">Upload plan</h2>
+          <h2 className="text-lg font-semibold mb-1">Upload plan</h2>
+          {supplierInfo && (
+            <p className="text-xs text-gray-400 mb-3">
+              Materials supplier: <span className="font-medium text-gray-600">{supplierInfo.name}</span>
+            </p>
+          )}
           <input className="w-full border rounded-lg px-3 py-2 mb-4" placeholder="Project name" value={projectName} onChange={(e) => setProjectName(e.target.value)} />
           <input className="w-full border rounded-lg px-3 py-2 mb-4" placeholder="Client name" value={clientName} onChange={(e) => setClientName(e.target.value)} />
           <input className="w-full border rounded-lg px-3 py-2 mb-4" placeholder="Site address" value={siteAddress} onChange={(e) => setSiteAddress(e.target.value)} />
@@ -339,9 +398,12 @@ export default function NewQuote() {
           <p className="text-xs text-gray-400 mb-4">
             Materials and labour quantities will be pre-filled on the next steps — you'll review and confirm every value before anything is priced.
           </p>
-          <button className="btn-primary" onClick={goToReview} disabled={extracting}>
-            {extracting ? 'Analyzing plan…' : 'Next: Review Extracted Info'}
-          </button>
+          <div className="flex justify-between items-center">
+            <button className="btn-secondary" onClick={() => setStep(0)} disabled={extracting}>Back</button>
+            <button className="btn-primary" onClick={goToReview} disabled={extracting}>
+              {extracting ? 'Analyzing plan…' : 'Next: Review Extracted Info'}
+            </button>
+          </div>
           {extracting && (
             <p className="text-xs text-gray-400 mt-3 flex items-center gap-2">
               <span className="inline-block h-3 w-3 rounded-full border-2 border-brand-blue border-t-transparent animate-spin"></span>
@@ -351,8 +413,8 @@ export default function NewQuote() {
         </div>
       )}
 
-      {/* Step 1: Review Extracted Info */}
-      {step === 1 && (
+      {/* Step 2: Review Extracted Info */}
+      {step === 2 && (
         <div className="card">
           <h2 className="text-lg font-semibold mb-2">Review extracted info</h2>
           <p className="text-sm text-brand-blue bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-2">
@@ -366,7 +428,10 @@ export default function NewQuote() {
                 uploaded {new Date(priceListInfo.uploadedAt).toLocaleDateString('en-ZA')}.
               </>
             ) : (
-              'Rates are the built-in reference pricing — an admin can upload a live BUCO price list from Admin → Price Lists.'
+              <>
+                Rates are the built-in reference pricing — an admin can upload a live{' '}
+                {supplierInfo?.name || 'supplier'} price list from Admin → Price Lists.
+              </>
             )}
           </p>
           <div className="overflow-x-auto">
@@ -403,14 +468,14 @@ export default function NewQuote() {
             </table>
           </div>
           <div className="flex justify-between mt-6">
-            <button className="btn-secondary" onClick={() => setStep(0)}>Back</button>
-            <button className="btn-primary" onClick={() => setStep(2)}>Next: Pricing Engine</button>
+            <button className="btn-secondary" onClick={() => setStep(1)}>Back</button>
+            <button className="btn-primary" onClick={() => setStep(3)}>Next: Pricing Engine</button>
           </div>
         </div>
       )}
 
-      {/* Step 2: Pricing Engine */}
-      {step === 2 && (
+      {/* Step 3: Pricing Engine */}
+      {step === 3 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card">
             <h2 className="text-lg font-semibold mb-1">Excel-based pricing engine</h2>
@@ -425,8 +490,8 @@ export default function NewQuote() {
             <label className="block text-sm text-gray-500 mb-1">Transport Allowance (R)</label>
             <input type="number" className="w-full border rounded-lg px-3 py-2 mb-6" value={transportAllowance} onChange={(e) => setTransportAllowance(e.target.value)} />
             <div className="flex justify-between">
-              <button className="btn-secondary" onClick={() => setStep(1)}>Back</button>
-              <button className="btn-primary" onClick={() => setStep(3)}>Add Labour Rate &rarr;</button>
+              <button className="btn-secondary" onClick={() => setStep(2)}>Back</button>
+              <button className="btn-primary" onClick={() => setStep(4)}>Add Labour Rate &rarr;</button>
             </div>
           </div>
 
@@ -464,8 +529,8 @@ export default function NewQuote() {
         </div>
       )}
 
-      {/* Step 3: Add Labour Rate */}
-      {step === 3 && (
+      {/* Step 4: Add Labour Rate */}
+      {step === 4 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card">
             <h2 className="text-lg font-semibold mb-1">Contractor labour rates</h2>
@@ -504,8 +569,8 @@ export default function NewQuote() {
               ))}
             </div>
             <div className="flex justify-between mt-6">
-              <button className="btn-secondary" onClick={() => setStep(2)}>Back</button>
-              <button className="btn-primary" onClick={() => setStep(4)}>Next: Generate PDF Quote</button>
+              <button className="btn-secondary" onClick={() => setStep(3)}>Back</button>
+              <button className="btn-primary" onClick={() => setStep(5)}>Next: Generate PDF Quote</button>
             </div>
           </div>
 
@@ -531,8 +596,8 @@ export default function NewQuote() {
         </div>
       )}
 
-      {/* Step 4: Generate PDF Quote */}
-      {step === 4 && (
+      {/* Step 5: Generate PDF Quote */}
+      {step === 5 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           <div className="card">
             <h2 className="text-lg font-semibold mb-4">Quote summary</h2>
@@ -550,7 +615,7 @@ export default function NewQuote() {
               Generating this quote would deduct 1 credit from your account.
             </p>
             <div className="flex justify-between">
-              <button className="btn-secondary" onClick={() => setStep(3)}>Back</button>
+              <button className="btn-secondary" onClick={() => setStep(4)}>Back</button>
               <button className="btn-primary" onClick={() => setShowPreview(true)}>Open PDF-Ready Quote</button>
             </div>
           </div>
