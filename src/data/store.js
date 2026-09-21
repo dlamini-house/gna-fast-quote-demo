@@ -34,6 +34,18 @@ const DEFAULT_ADMIN_USERS = [
 
 export { SEED_CONTRACTOR_PASSWORD, SEED_ADMIN_PASSWORD }
 
+// Bump this any time the shape of adminUsers/applications changes (a new
+// field, a new default account, etc). A saved browser whose schemaVersion
+// doesn't match this session's version has its admin + contractor accounts
+// reseeded from the defaults above — no guessing field-by-field whether the
+// old data is "new enough". This is what actually fixes admin sign-in
+// breaking after an update: the previous approach checked only whether a
+// `password` key existed on each saved record, not whether its value was
+// still correct, so a browser that had passed through an in-between version
+// could get stuck permanently "looking" current while holding a stale or
+// blank password.
+const SCHEMA_VERSION = 2
+
 function loadState() {
   let saved = {}
   try {
@@ -42,22 +54,10 @@ function loadState() {
   } catch (e) {
     console.warn('Could not read local demo state', e)
   }
-  // Merge with defaults so older saved state (before admin data existed, or
-  // before admin passwords existed) still works — reseed if the email is
-  // missing OR the records are the old shape with no password field.
-  const adminUsers =
-    saved.adminUsers &&
-    saved.adminUsers.some((a) => a.email === 'gavine@gnafastquote.co.za') &&
-    saved.adminUsers.every((a) => 'password' in a)
-      ? saved.adminUsers
-      : DEFAULT_ADMIN_USERS // stale pre-password admin data from an earlier demo build — reseed
 
-  // Same self-healing for applications: older saved state won't have
-  // passwords/logos on each record, so reseed if the shape looks stale.
-  const applications =
-    saved.applications && saved.applications.length && 'password' in saved.applications[0]
-      ? saved.applications
-      : DEFAULT_APPLICATIONS
+  const schemaCurrent = saved.schemaVersion === SCHEMA_VERSION
+  const adminUsers = schemaCurrent && saved.adminUsers ? saved.adminUsers : DEFAULT_ADMIN_USERS
+  const applications = schemaCurrent && saved.applications ? saved.applications : DEFAULT_APPLICATIONS
 
   return {
     trialStartedAt: saved.trialStartedAt || new Date().toISOString(),
@@ -66,8 +66,11 @@ function loadState() {
     quotes: saved.quotes || [],
     applications,
     adminUsers,
-    currentAdminEmail: saved.currentAdminEmail || null,
-    currentUserEmail: saved.currentUserEmail || null
+    // A schema reseed also clears whoever was "signed in" under the old
+    // shape, so a half-valid session can't linger either.
+    currentAdminEmail: schemaCurrent ? saved.currentAdminEmail || null : null,
+    currentUserEmail: schemaCurrent ? saved.currentUserEmail || null : null,
+    schemaVersion: SCHEMA_VERSION
   }
 }
 

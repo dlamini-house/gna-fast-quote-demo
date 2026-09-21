@@ -1,7 +1,10 @@
 const SUPPLIERS = [
   { name: 'BUCO', src: './suppliers/buco.jpg' },
   { name: 'Leroy Merlin', src: './suppliers/leroy-merlin.jpg' },
-  { name: 'Build it', src: './suppliers/buildit.jpg' }
+  { name: 'Build it', src: './suppliers/buildit.jpg' },
+  { name: 'Cashbuild', src: './suppliers/cashbuild.png' },
+  { name: 'Dreiers', src: './suppliers/dreiers.jpg' },
+  { name: 'Builders Warehouse', src: './suppliers/builders-warehouse.png' }
 ]
 
 export default function SupplierStrip({ dark = false }) {
