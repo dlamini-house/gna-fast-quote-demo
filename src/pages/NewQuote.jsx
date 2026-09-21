@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import Layout from '../components/Layout'
@@ -36,6 +36,38 @@ export default function NewQuote() {
 
   // Step 1: extracted material line items (qty editable, rate fixed from price list)
   const [materials, setMaterials] = useState(MOCK_EXTRACTED_MATERIALS.map((m) => ({ ...m })))
+  const [priceListInfo, setPriceListInfo] = useState(null) // uploaded BUCO price list metadata, if any
+  const [priceOverrides, setPriceOverrides] = useState(null) // code -> { price, description } from that upload
+
+  // Pull in whatever price list an admin has uploaded (Admin → Price Lists).
+  // Materials are matched by their product code, so an admin replacing the
+  // BUCO list changes the rates a contractor sees here without any other
+  // code path changing.
+  useEffect(() => {
+    db.get('priceLists', 'buco').then((record) => {
+      if (!record?.items?.length) return
+      const map = {}
+      record.items.forEach((it) => {
+        if (it.code) map[String(it.code)] = it
+      })
+      setPriceOverrides(map)
+      setPriceListInfo(record)
+    })
+  }, [])
+
+  function withPriceListRates(items) {
+    if (!priceOverrides) return items
+    return items.map((m) => {
+      const match = priceOverrides[String(m.code)]
+      return match ? { ...m, rate: match.price, description: match.description || m.description } : m
+    })
+  }
+
+  // The price list usually loads a moment after this component mounts, so
+  // re-apply it to whatever's already on screen once it arrives.
+  useEffect(() => {
+    if (priceOverrides) setMaterials((items) => withPriceListRates(items))
+  }, [priceOverrides])
 
   // Step 2: pricing engine settings
   const [markup, setMarkup] = useState(15)
@@ -58,7 +90,7 @@ export default function NewQuote() {
   function goToReview() {
     setExtracting(true)
     setTimeout(() => {
-      setMaterials(MOCK_EXTRACTED_MATERIALS.map((m) => ({ ...m })))
+      setMaterials(withPriceListRates(MOCK_EXTRACTED_MATERIALS.map((m) => ({ ...m }))))
       setExtracting(false)
       setWasExtracted(true)
       setStep(1)
@@ -323,9 +355,19 @@ export default function NewQuote() {
       {step === 1 && (
         <div className="card">
           <h2 className="text-lg font-semibold mb-2">Review extracted info</h2>
-          <p className="text-sm text-brand-blue bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-4">
+          <p className="text-sm text-brand-blue bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-2">
             These quantities were estimated from your uploaded plan and mapped to items in your price
             list. Adjust any quantity before continuing.
+          </p>
+          <p className="text-xs text-gray-500 mb-4">
+            {priceListInfo ? (
+              <>
+                &#10003; Rates are from the <strong>{priceListInfo.supplier}</strong> price list
+                uploaded {new Date(priceListInfo.uploadedAt).toLocaleDateString('en-ZA')}.
+              </>
+            ) : (
+              'Rates are the built-in reference pricing — an admin can upload a live BUCO price list from Admin → Price Lists.'
+            )}
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

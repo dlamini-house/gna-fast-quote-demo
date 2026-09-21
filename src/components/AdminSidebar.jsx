@@ -12,6 +12,7 @@ export default function AdminSidebar() {
     { to: '/admin/verified', label: 'Verified Users', icon: '\u2713' },
     { to: '/admin/potential', label: 'Potential Users', icon: '\u23F3' },
     { to: '/admin/rejected', label: 'Rejected Profiles', icon: '\u2715' },
+    { to: '/admin/price-lists', label: 'Price Lists', icon: '\u{1F4B0}' },
     ...(master ? [{ to: '/admin/admins', label: 'Admins', icon: '\u2699' }] : [])
   ]
 

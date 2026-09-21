@@ -13,6 +13,7 @@ import VerifiedUsers from './pages/admin/VerifiedUsers'
 import RejectedProfiles from './pages/admin/RejectedProfiles'
 import AdminUsersList from './pages/admin/AdminUsersList'
 import CreateAdminUser from './pages/admin/CreateAdminUser'
+import PriceLists from './pages/admin/PriceLists'
 import { useAppState, isMasterAdmin, currentAdmin, currentUser } from './data/store'
 
 function RequireMasterAdmin({ children }) {
@@ -54,6 +55,7 @@ export default function App() {
       <Route path="/admin/potential" element={<RequireAdmin><PotentialUsers /></RequireAdmin>} />
       <Route path="/admin/verified" element={<RequireAdmin><VerifiedUsers /></RequireAdmin>} />
       <Route path="/admin/rejected" element={<RequireAdmin><RejectedProfiles /></RequireAdmin>} />
+      <Route path="/admin/price-lists" element={<RequireAdmin><PriceLists /></RequireAdmin>} />
       <Route
         path="/admin/admins"
         element={
