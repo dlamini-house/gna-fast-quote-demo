@@ -10,12 +10,67 @@ import { db } from '../../data/db'
 // not a schema change.
 const SUPPLIERS = [{ slug: 'buco', name: 'BUCO' }]
 
-// Every sheet in the client's template uses the same columns starting a
-// few blank rows in: Product Code, Description, Quantity, Un, Price, Incl VAT.
-// We scan for that header row rather than assuming a fixed row number, so a
-// slightly different export still parses.
-function parseWorkbook(arrayBuffer) {
-  const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+// GNA now sends every supplier the same standard "Supplier Price Request"
+// workbook: one "Supplier Price Form" sheet, items grouped by a Category
+// column, with the product code in "Supplier SKU / Code" and pricing in
+// "PRICE EX VAT" / "PRICE INCL VAT". We scan for that header row (by column
+// name, not position), so a slightly different export of the same template
+// still parses, and group the preview by each row's Category value.
+function parseStandardTemplate(workbook) {
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName]
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, blankrows: false })
+
+    const headerIndex = rows.findIndex((row) =>
+      row.some((cell) => String(cell || '').trim().toLowerCase().includes('supplier sku'))
+    )
+    if (headerIndex === -1) continue
+
+    const header = rows[headerIndex].map((h) => String(h || '').trim().toLowerCase())
+    const categoryCol = header.indexOf('category')
+    const materialCol = header.findIndex((h) => h.startsWith('material'))
+    const unitCol = header.indexOf('unit')
+    const codeCol = header.findIndex((h) => h.includes('supplier sku'))
+    const priceCol = header.findIndex((h) => h.includes('price ex vat'))
+    const vatCol = header.findIndex((h) => h.includes('price incl vat'))
+
+    const byCategory = {}
+    const flatItems = []
+    let totalItems = 0
+
+    for (let i = headerIndex + 1; i < rows.length; i++) {
+      const row = rows[i]
+      const code = codeCol >= 0 ? row[codeCol] : null
+      if (code === null || code === undefined || String(code).trim() === '') continue
+      const price = priceCol >= 0 ? Number(row[priceCol]) : NaN
+      if (Number.isNaN(price)) continue
+
+      const category = categoryCol >= 0 ? String(row[categoryCol] || '').trim() || 'Uncategorised' : 'Uncategorised'
+      const item = {
+        code: String(code).trim(),
+        description: materialCol >= 0 ? String(row[materialCol] || '').trim() : '',
+        quantity: null,
+        unit: unitCol >= 0 ? String(row[unitCol] || '').trim() : '',
+        price,
+        priceInclVat: vatCol >= 0 ? Number(row[vatCol]) || null : null
+      }
+      if (!byCategory[category]) byCategory[category] = []
+      byCategory[category].push(item)
+      flatItems.push({ ...item, category })
+      totalItems += 1
+    }
+
+    if (totalItems > 0) {
+      const categories = Object.entries(byCategory).map(([category, items]) => ({ category, items }))
+      return { categories, flatItems, totalItems }
+    }
+  }
+  return null
+}
+
+// Older-style template, kept for backward compatibility: one sheet per
+// category, columns Product Code, Description, Quantity, Un, Price, Incl VAT.
+function parseLegacyTemplate(workbook) {
   const categories = []
   let totalItems = 0
   const flatItems = []
@@ -63,6 +118,11 @@ function parseWorkbook(arrayBuffer) {
   })
 
   return { categories, flatItems, totalItems }
+}
+
+function parseWorkbook(arrayBuffer) {
+  const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+  return parseStandardTemplate(workbook) || parseLegacyTemplate(workbook)
 }
 
 export default function PriceLists() {
@@ -181,8 +241,9 @@ export default function PriceLists() {
               {current ? `Replace the ${supplier.name} price list` : `Upload the ${supplier.name} price list`}
             </h2>
             <p className="text-xs text-gray-400 mb-3">
-              .xlsx file, one sheet per category, each sheet needs a "Product Code" header row
-              (matches the template GNA already uses).
+              .xlsx file in GNA's standard "Supplier Price Request" template — the same workbook
+              sent to every supplier, with items grouped by Category and priced in the
+              "Supplier SKU / Code" / "PRICE EX VAT" columns.
             </p>
             <label className="block border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-brand-blue transition-colors">
               <input type="file" accept=".xlsx" className="hidden" onChange={handleFile} />

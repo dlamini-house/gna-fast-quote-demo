@@ -11,6 +11,6 @@ export const SUPPLIERS = [
   { slug: 'leroy-merlin', name: 'Leroy Merlin', src: './suppliers/leroy-merlin.jpg', active: false },
   { slug: 'buildit', name: 'Build it', src: './suppliers/buildit.jpg', active: false },
   { slug: 'cashbuild', name: 'Cashbuild', src: './suppliers/cashbuild.png', active: false },
-  { slug: 'dreiers', name: 'Dreiers', src: './suppliers/dreiers.jpg', active: false },
+  { slug: 'cosave-powerbuild', name: 'Cosave Powerbuild & Wholesalers', src: './suppliers/cosave-powerbuild.jpg', active: false },
   { slug: 'builders-warehouse', name: 'Builders Warehouse', src: './suppliers/builders-warehouse.png', active: false }
 ]
