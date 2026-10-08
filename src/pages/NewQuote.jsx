@@ -20,6 +20,7 @@ const STEPS = [
   'Upload Plan',
   'Review Extracted Info',
   'Add Items Not on Plan',
+  'Consumables (Optional)',
   'Pricing Engine',
   'Add Labour Rate',
   'Generate PDF Quote'
@@ -28,7 +29,20 @@ const STEPS = [
 // Categories a plan can never tell you about — the contractor has to choose
 // these themselves rather than having them auto-extracted. Surfaced as
 // quick filters on the "Add Items Not on Plan" step.
-const SUGGESTED_EXTRA_CATEGORIES = ['Labour & Services', 'General Fixings & Consumables']
+const SUGGESTED_EXTRA_CATEGORIES = ['Labour & Services']
+
+// Consumables (the price list's "12 General Fixings & Consumables" category)
+// has its own optional step, so it's matched here and kept out of the
+// general "Add Items Not on Plan" browser.
+const isConsumablesCategory = (name) => String(name).includes('Consumables')
+
+// Price-list category names carry a numeric prefix ("14 Labour & Services");
+// show them without it, and show the consumables category simply as
+// "Consumables".
+function categoryLabel(name) {
+  if (isConsumablesCategory(name)) return 'Consumables'
+  return String(name).replace(/^\d+\s+/, '')
+}
 
 function unitLabel(unitId) {
   return UNIT_OPTIONS.find((u) => u.id === unitId)?.label || unitId
@@ -65,6 +79,11 @@ export default function NewQuote() {
   const [extraCategoryFilter, setExtraCategoryFilter] = useState('all')
   const [extraSearch, setExtraSearch] = useState('')
   const [extraQtyDrafts, setExtraQtyDrafts] = useState({})
+
+  // Step 4: optional consumables — the supplier's full consumables list,
+  // with a quantity per item the contractor wants.
+  const [wantsConsumables, setWantsConsumables] = useState(false)
+  const [consumableQtys, setConsumableQtys] = useState({}) // code -> qty string
 
   // Pull in whatever price list an admin has uploaded for the chosen supplier
   // (Admin → Price Lists). Materials are matched by their product code, so
@@ -111,13 +130,34 @@ export default function NewQuote() {
     setExtraMaterials((items) => items.map((it) => (it.id === id ? { ...it, qty } : it)))
   }
 
-  const allMaterials = [...materials, ...extraMaterials]
+  // Consumables the contractor ticked, priced straight from the supplier's list.
+  const consumablesCategory = priceCatalog.find((c) => isConsumablesCategory(c.category)) || null
+  const consumableLines = wantsConsumables && consumablesCategory
+    ? consumablesCategory.items
+        .filter((it) => (parseFloat(consumableQtys[it.code]) || 0) > 0)
+        .map((it) => ({
+          id: `consumable-${it.code}`,
+          source: 'Consumables',
+          code: it.code,
+          description: it.description,
+          unit: it.unit,
+          qty: parseFloat(consumableQtys[it.code]),
+          rate: it.price
+        }))
+    : []
+
+  const allMaterials = [...materials, ...extraMaterials, ...consumableLines]
+  // Step 3 browses every category except consumables (which has its own step).
+  const extraCatalog = priceCatalog.filter((c) => !isConsumablesCategory(c.category))
 
   function withPriceListRates(items) {
     if (!priceOverrides) return items
     return items.map((m) => {
       const match = priceOverrides[String(m.code)]
-      return match ? { ...m, rate: match.price, description: match.description || m.description } : m
+      // The price list's wording is generic ("Internal doors"), the plan's
+      // line is specific ("Door Hardboard Hollow Core 813x2032mm") — keep the
+      // specific description and take only the rate from the list.
+      return match ? { ...m, rate: match.price } : m
     })
   }
 
@@ -140,7 +180,20 @@ export default function NewQuote() {
     Object.fromEntries(LABOUR_FIXED.map((f) => [f.id, String(f.amount)]))
   )
 
-  // Step 4
+  // Labour: the contractor's own extra line items, on top of the standard trades
+  const [customLabour, setCustomLabour] = useState([]) // { id, label, unit, rate, qty }
+
+  function addCustomLabour() {
+    setCustomLabour((rows) => [...rows, { id: `custom-${Date.now()}`, label: '', unit: 'day', rate: '', qty: '1' }])
+  }
+  function updateCustomLabour(id, field, value) {
+    setCustomLabour((rows) => rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
+  }
+  function removeCustomLabour(id) {
+    setCustomLabour((rows) => rows.filter((r) => r.id !== id))
+  }
+
+  // Final step
   const [showPreview, setShowPreview] = useState(false)
 
   const allowed = canGenerateQuote(state)
@@ -172,8 +225,14 @@ export default function NewQuote() {
     return { ...t, unit, rate, cost: rate * t.basis }
   })
   const fixedLines = LABOUR_FIXED.map((f) => ({ ...f, amount: parseFloat(fixedLabour[f.id]) || 0 }))
+  const customLabourLines = customLabour.map((r) => ({
+    ...r,
+    cost: (parseFloat(r.rate) || 0) * (parseFloat(r.qty) || 0)
+  }))
   const labourCost =
-    labourLines.reduce((sum, l) => sum + l.cost, 0) + fixedLines.reduce((sum, f) => sum + f.amount, 0)
+    labourLines.reduce((sum, l) => sum + l.cost, 0) +
+    fixedLines.reduce((sum, f) => sum + f.amount, 0) +
+    customLabourLines.reduce((sum, l) => sum + l.cost, 0)
 
   const transport = parseFloat(transportAllowance) || 0
   const subtotal = materialCost + labourCost + transport
@@ -530,12 +589,12 @@ export default function NewQuote() {
           <div className="card">
             <h2 className="text-lg font-semibold mb-1">Add items not on the plan</h2>
             <p className="text-sm text-gray-500 mb-4">
-              Some trades never show up on a drawing — labour, general fixings and consumables are
-              the contractor's call. Pick any item from the {supplierInfo?.name || 'supplier'} price
-              list and add it to this quote.
+              Some items never show up on a drawing — labour and services are the contractor's call.
+              Pick any item from the {supplierInfo?.name || 'supplier'} price list and add it to this
+              quote. Consumables have their own step next.
             </p>
 
-            {!priceCatalog.length ? (
+            {!extraCatalog.length ? (
               <p className="text-sm text-gray-400">
                 No price list is loaded for {supplierInfo?.name || 'this supplier'} yet, so there's
                 nothing to browse here — continue to pricing, or ask an admin to upload one from
@@ -554,7 +613,7 @@ export default function NewQuote() {
                     All categories
                   </button>
                   {SUGGESTED_EXTRA_CATEGORIES.map((label) => {
-                    const match = priceCatalog.find((c) => c.category.includes(label))
+                    const match = extraCatalog.find((c) => c.category.includes(label))
                     if (!match) return null
                     return (
                       <button
@@ -577,8 +636,8 @@ export default function NewQuote() {
                     onChange={(e) => setExtraCategoryFilter(e.target.value || 'all')}
                   >
                     <option value="">More categories…</option>
-                    {priceCatalog.map((c) => (
-                      <option key={c.category} value={c.category}>{c.category}</option>
+                    {extraCatalog.map((c) => (
+                      <option key={c.category} value={c.category}>{categoryLabel(c.category)}</option>
                     ))}
                   </select>
                 </div>
@@ -589,7 +648,7 @@ export default function NewQuote() {
                   onChange={(e) => setExtraSearch(e.target.value)}
                 />
                 <div className="overflow-y-auto max-h-80 border rounded-lg divide-y">
-                  {priceCatalog
+                  {extraCatalog
                     .filter((c) => extraCategoryFilter === 'all' || c.category === extraCategoryFilter)
                     .flatMap((c) => c.items.map((it) => ({ ...it, category: c.category })))
                     .filter((it) => !extraSearch || it.description.toLowerCase().includes(extraSearch.toLowerCase()))
@@ -598,7 +657,7 @@ export default function NewQuote() {
                       <div key={`${it.category}-${it.code}`} className="flex items-center gap-2 px-3 py-2 text-sm">
                         <div className="flex-1 min-w-0">
                           <p className="truncate">{it.description}</p>
-                          <p className="text-xs text-gray-400">{it.category} &middot; R {it.price.toFixed(2)} / {it.unit || 'EA'}</p>
+                          <p className="text-xs text-gray-400">{categoryLabel(it.category)} &middot; R {it.price.toFixed(2)} / {it.unit || 'EA'}</p>
                         </div>
                         <input
                           type="number"
@@ -623,7 +682,7 @@ export default function NewQuote() {
 
             <div className="flex justify-between mt-6">
               <button className="btn-secondary" onClick={() => setStep(2)}>Back</button>
-              <button className="btn-primary" onClick={() => setStep(4)}>Next: Pricing Engine</button>
+              <button className="btn-primary" onClick={() => setStep(4)}>Next: Consumables</button>
             </div>
           </div>
 
@@ -639,7 +698,7 @@ export default function NewQuote() {
                   <div key={m.id} className="flex items-center gap-2 text-sm border-b border-gray-100 pb-2">
                     <div className="flex-1 min-w-0">
                       <p className="truncate">{m.description}</p>
-                      <p className="text-xs text-gray-400">{m.source} &middot; R {m.rate.toFixed(2)} / {m.unit || 'EA'}</p>
+                      <p className="text-xs text-gray-400">{categoryLabel(m.source)} &middot; R {m.rate.toFixed(2)} / {m.unit || 'EA'}</p>
                     </div>
                     <input
                       type="number"
@@ -663,8 +722,111 @@ export default function NewQuote() {
         </div>
       )}
 
-      {/* Step 4: Pricing Engine */}
+      {/* Step 4: Consumables (optional) */}
       {step === 4 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <div className="card">
+            <h2 className="text-lg font-semibold mb-1">Consumables</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Optional. Consumables (fixings, sealants, adhesives, tapes, safety gear) can't be read
+              off a plan. Add them if this job needs them, or skip straight to pricing.
+            </p>
+
+            <div className="flex gap-3 mb-4">
+              <button
+                type="button"
+                onClick={() => setWantsConsumables(true)}
+                className={`flex-1 border rounded-lg px-3 py-2.5 text-sm font-medium ${
+                  wantsConsumables ? 'border-brand-blue bg-blue-50 text-brand-blue' : 'border-gray-200 text-gray-600'
+                }`}
+              >
+                Yes, add consumables
+              </button>
+              <button
+                type="button"
+                onClick={() => setWantsConsumables(false)}
+                className={`flex-1 border rounded-lg px-3 py-2.5 text-sm font-medium ${
+                  !wantsConsumables ? 'border-brand-blue bg-blue-50 text-brand-blue' : 'border-gray-200 text-gray-600'
+                }`}
+              >
+                No, skip
+              </button>
+            </div>
+
+            {wantsConsumables && !consumablesCategory && (
+              <p className="text-sm text-gray-400">
+                No consumables list is loaded for {supplierInfo?.name || 'this supplier'} yet — an
+                admin can upload their price list from Admin → Price Lists.
+              </p>
+            )}
+
+            {wantsConsumables && consumablesCategory && (
+              <div className="border rounded-lg divide-y max-h-[28rem] overflow-y-auto">
+                {consumablesCategory.items.map((it) => {
+                  const qty = consumableQtys[it.code] ?? ''
+                  const selected = (parseFloat(qty) || 0) > 0
+                  return (
+                    <div key={it.code} className={`flex items-center gap-3 px-3 py-2 text-sm ${selected ? 'bg-blue-50' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={(e) =>
+                          setConsumableQtys((q) => ({ ...q, [it.code]: e.target.checked ? '1' : '' }))
+                        }
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate">{it.description}</p>
+                        <p className="text-xs text-gray-400">R {it.price.toFixed(2)} / {it.unit || 'EA'}</p>
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="Qty"
+                        className="w-20 border rounded px-2 py-1 text-sm"
+                        value={qty}
+                        onChange={(e) => setConsumableQtys((q) => ({ ...q, [it.code]: e.target.value }))}
+                      />
+                      <span className="w-24 text-right text-sm font-medium">
+                        {selected ? `R ${(parseFloat(qty) * it.price).toFixed(2)}` : ''}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="flex justify-between mt-6">
+              <button className="btn-secondary" onClick={() => setStep(3)}>Back</button>
+              <button className="btn-primary" onClick={() => setStep(5)}>Next: Pricing Engine</button>
+            </div>
+          </div>
+
+          <div className="card">
+            <h2 className="text-lg font-semibold mb-4">Consumables on this quote</h2>
+            {consumableLines.length === 0 ? (
+              <p className="text-sm text-gray-400">
+                {wantsConsumables ? 'Tick or enter a quantity for any item on the left.' : 'Skipped — no consumables will be added.'}
+              </p>
+            ) : (
+              <div className="space-y-2 text-sm">
+                {consumableLines.map((m) => (
+                  <div key={m.id} className="flex justify-between gap-3 border-b border-gray-100 pb-2">
+                    <span className="min-w-0 truncate">{m.qty} &times; {m.description}</span>
+                    <span className="font-medium shrink-0">R {(m.qty * m.rate).toFixed(2)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between pt-2 font-semibold">
+                  <span>Consumables subtotal</span>
+                  <span>R {consumableLines.reduce((sum, m) => sum + m.qty * m.rate, 0).toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Step 5: Pricing Engine */}
+      {step === 5 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card">
             <h2 className="text-lg font-semibold mb-1">Excel-based pricing engine</h2>
@@ -679,8 +841,8 @@ export default function NewQuote() {
             <label className="block text-sm text-gray-500 mb-1">Transport Allowance (R)</label>
             <input type="number" className="w-full border rounded-lg px-3 py-2 mb-6" value={transportAllowance} onChange={(e) => setTransportAllowance(e.target.value)} />
             <div className="flex justify-between">
-              <button className="btn-secondary" onClick={() => setStep(3)}>Back</button>
-              <button className="btn-primary" onClick={() => setStep(5)}>Add Labour Rate &rarr;</button>
+              <button className="btn-secondary" onClick={() => setStep(4)}>Back</button>
+              <button className="btn-primary" onClick={() => setStep(6)}>Add Labour Rate &rarr;</button>
             </div>
           </div>
 
@@ -718,8 +880,8 @@ export default function NewQuote() {
         </div>
       )}
 
-      {/* Step 5: Add Labour Rate */}
-      {step === 5 && (
+      {/* Step 6: Add Labour Rate */}
+      {step === 6 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card">
             <h2 className="text-lg font-semibold mb-1">Contractor labour rates</h2>
@@ -757,9 +919,67 @@ export default function NewQuote() {
                 </div>
               ))}
             </div>
+
+            <div className="mt-5 pt-4 border-t">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold">Your own line items</h3>
+                <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-brand-blue text-white font-medium" onClick={addCustomLabour}>
+                  + Add line item
+                </button>
+              </div>
+              {customLabour.length === 0 ? (
+                <p className="text-xs text-gray-400">
+                  Need something not listed above? Add your own labour line — a description, a unit, a rate and a quantity.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-12 gap-2 text-[11px] text-gray-400 px-0.5">
+                    <span className="col-span-4">Description</span>
+                    <span className="col-span-2">Unit</span>
+                    <span className="col-span-2">Rate (R)</span>
+                    <span className="col-span-2">Qty</span>
+                    <span className="col-span-2"></span>
+                  </div>
+                  {customLabour.map((r) => (
+                    <div key={r.id} className="grid grid-cols-12 gap-2 items-center">
+                      <input
+                        className="col-span-4 border rounded-lg px-2 py-1.5 text-sm"
+                        placeholder="e.g. Site cleanup"
+                        value={r.label}
+                        onChange={(e) => updateCustomLabour(r.id, 'label', e.target.value)}
+                      />
+                      <select
+                        className="col-span-2 border rounded-lg px-1 py-1.5 text-sm"
+                        value={r.unit}
+                        onChange={(e) => updateCustomLabour(r.id, 'unit', e.target.value)}
+                      >
+                        {UNIT_OPTIONS.map((u) => (<option key={u.id} value={u.id}>{u.label}</option>))}
+                      </select>
+                      <input
+                        type="number"
+                        className="col-span-2 border rounded-lg px-2 py-1.5 text-sm"
+                        placeholder="0"
+                        value={r.rate}
+                        onChange={(e) => updateCustomLabour(r.id, 'rate', e.target.value)}
+                      />
+                      <input
+                        type="number"
+                        className="col-span-2 border rounded-lg px-2 py-1.5 text-sm"
+                        placeholder="1"
+                        value={r.qty}
+                        onChange={(e) => updateCustomLabour(r.id, 'qty', e.target.value)}
+                      />
+                      <button type="button" className="col-span-2 text-xs text-gray-400 hover:text-brand-red text-left" onClick={() => removeCustomLabour(r.id)}>
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="flex justify-between mt-6">
-              <button className="btn-secondary" onClick={() => setStep(4)}>Back</button>
-              <button className="btn-primary" onClick={() => setStep(6)}>Next: Generate PDF Quote</button>
+              <button className="btn-secondary" onClick={() => setStep(5)}>Back</button>
+              <button className="btn-primary" onClick={() => setStep(7)}>Next: Generate PDF Quote</button>
             </div>
           </div>
 
@@ -769,6 +989,12 @@ export default function NewQuote() {
               {labourLines.map((l) => (
                 <div key={l.id} className="flex justify-between">
                   <span className="text-gray-500">{l.label}</span>
+                  <span>R {l.cost.toFixed(2)}</span>
+                </div>
+              ))}
+              {customLabourLines.map((l) => (
+                <div key={l.id} className="flex justify-between">
+                  <span className="text-gray-500">{l.label || 'Custom line item'}</span>
                   <span>R {l.cost.toFixed(2)}</span>
                 </div>
               ))}
@@ -785,8 +1011,8 @@ export default function NewQuote() {
         </div>
       )}
 
-      {/* Step 6: Generate PDF Quote */}
-      {step === 6 && (
+      {/* Step 7: Generate PDF Quote */}
+      {step === 7 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           <div className="card">
             <h2 className="text-lg font-semibold mb-4">Quote summary</h2>
@@ -804,7 +1030,7 @@ export default function NewQuote() {
               Generating this quote would deduct 1 credit from your account.
             </p>
             <div className="flex justify-between">
-              <button className="btn-secondary" onClick={() => setStep(5)}>Back</button>
+              <button className="btn-secondary" onClick={() => setStep(6)}>Back</button>
               <button className="btn-primary" onClick={() => setShowPreview(true)}>Open PDF-Ready Quote</button>
             </div>
           </div>

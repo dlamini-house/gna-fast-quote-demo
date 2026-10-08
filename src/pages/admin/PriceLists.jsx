@@ -3,12 +3,10 @@ import * as XLSX from 'xlsx'
 import AdminLayout from '../../components/AdminLayout'
 import { useAppState, currentAdmin } from '../../data/store'
 import { db } from '../../data/db'
+import { SUPPLIERS } from '../../data/suppliers'
 
-// The only supplier wired up for now. The data shape below (a record per
-// supplier, keyed by slug) is deliberately ready for more — adding Leroy
-// Merlin or Build it later is a new row in this list plus its own upload,
-// not a schema change.
-const SUPPLIERS = [{ slug: 'buco', name: 'BUCO' }]
+// Every supplier gets its own price-list record, keyed by its slug in
+// data/suppliers.js — the same slug New Quote uses to look the list up.
 
 // GNA now sends every supplier the same standard "Supplier Price Request"
 // workbook: one "Supplier Price Form" sheet, items grouped by a Category
@@ -128,14 +126,28 @@ function parseWorkbook(arrayBuffer) {
 export default function PriceLists() {
   const [state] = useAppState()
   const admin = currentAdmin(state)
-  const [supplier] = useState(SUPPLIERS[0])
+  const [supplier, setSupplier] = useState(SUPPLIERS[0])
   const [current, setCurrent] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [uploaded, setUploaded] = useState({}) // slug -> true once that supplier has a saved list
   const [pending, setPending] = useState(null) // parsed-but-not-saved upload, awaiting confirmation
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
+  // Which suppliers already have a list, for the status badges on the left.
   useEffect(() => {
+    Promise.all(SUPPLIERS.map((s) => db.get('priceLists', s.slug).then((r) => [s.slug, !!r]))).then((pairs) =>
+      setUploaded(Object.fromEntries(pairs))
+    )
+  }, [])
+
+  // Switching supplier loads that supplier's own list and clears any
+  // half-finished upload from the previous one.
+  useEffect(() => {
+    setLoading(true)
+    setPending(null)
+    setError('')
+    setSaved(false)
     db.get('priceLists', supplier.slug).then((record) => {
       setCurrent(record)
       setLoading(false)
@@ -152,7 +164,7 @@ export default function PriceLists() {
       try {
         const parsed = parseWorkbook(reader.result)
         if (parsed.totalItems === 0) {
-          setError('No pricing rows found — check the file has a "Product Code" column header on each sheet.')
+          setError('No pricing rows found — check the file is GNA\u2019s standard Supplier Price Request template with a "Supplier SKU / Code" and "PRICE EX VAT" column filled in.')
           return
         }
         setPending({ ...parsed, fileName: file.name })
@@ -176,6 +188,7 @@ export default function PriceLists() {
     }
     const saved = await db.set('priceLists', supplier.slug, record)
     setCurrent(saved)
+    setUploaded((u) => ({ ...u, [supplier.slug]: true }))
     setPending(null)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
@@ -186,23 +199,33 @@ export default function PriceLists() {
       title="Price Lists"
       subtitle="Upload and manage the material price lists that quotes are calculated from."
     >
-      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6 items-start">
         <div className="card">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Suppliers</h2>
           <div className="space-y-2">
-            {SUPPLIERS.map((s) => (
-              <div
-                key={s.slug}
-                className="w-full flex items-center justify-between border rounded-lg px-3 py-2.5 border-brand-blue bg-blue-50"
-              >
-                <span className="font-medium text-sm">{s.name}</span>
-                <span className="badge badge-verified">Active</span>
-              </div>
-            ))}
-            <div className="w-full flex items-center justify-between border border-dashed rounded-lg px-3 py-2.5 text-gray-400">
-              <span className="text-sm">More suppliers</span>
-              <span className="text-xs">Coming soon</span>
-            </div>
+            {SUPPLIERS.map((s) => {
+              const isSelected = s.slug === supplier.slug
+              return (
+                <button
+                  key={s.slug}
+                  type="button"
+                  onClick={() => setSupplier(s)}
+                  className={`w-full flex items-center gap-2.5 border rounded-lg px-3 py-2.5 text-left transition-colors ${
+                    isSelected ? 'border-brand-blue bg-blue-50' : 'border-gray-200 hover:border-brand-blue'
+                  }`}
+                >
+                  <span className="h-8 w-8 shrink-0 rounded bg-white border border-gray-100 flex items-center justify-center">
+                    <img src={s.src} alt="" className="max-h-6 max-w-[26px] object-contain" />
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-medium text-sm leading-tight">{s.name}</span>
+                    <span className={`block text-[11px] ${uploaded[s.slug] ? 'text-brand-green' : 'text-gray-400'}`}>
+                      {uploaded[s.slug] ? '\u2713 Price list uploaded' : 'No price list yet'}
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -231,7 +254,7 @@ export default function PriceLists() {
               </div>
             ) : (
               <p className="text-sm text-gray-500">
-                No price list uploaded yet — quotes are using the built-in reference pricing.
+                No price list uploaded yet for {supplier.name} — quotes using this supplier fall back to the built-in reference pricing until one is uploaded.
               </p>
             )}
           </div>
