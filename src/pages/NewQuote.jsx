@@ -14,6 +14,7 @@ import { useAppState, canGenerateQuote, currentUser } from '../data/store'
 import { LOGO_BASE64 } from '../data/logo'
 import { db } from '../data/db'
 import { SUPPLIERS } from '../data/suppliers'
+import { DEFAULT_PRICE_LIST } from '../data/defaultPriceList'
 
 const STEPS = [
   'Select Supplier',
@@ -94,8 +95,10 @@ export default function NewQuote() {
     setPriceOverrides(null)
     setPriceListInfo(null)
     setPriceCatalog([])
-    db.get('priceLists', supplier).then((record) => {
-      if (!record?.items?.length) return
+    db.get('priceLists', supplier).then((uploaded) => {
+      // An admin-uploaded list wins; otherwise use the built-in demo list so
+      // every supplier always has real categories, items and prices.
+      const record = uploaded?.items?.length ? uploaded : DEFAULT_PRICE_LIST
       const map = {}
       record.items.forEach((it) => {
         if (it.code) map[String(it.code)] = it
@@ -533,8 +536,10 @@ export default function NewQuote() {
           <p className="text-xs text-gray-500 mb-4">
             {priceListInfo ? (
               <>
-                &#10003; Rates are from the <strong>{priceListInfo.supplier}</strong> price list
-                uploaded {new Date(priceListInfo.uploadedAt).toLocaleDateString('en-ZA')}.
+                &#10003; Rates are from the <strong>{supplierInfo?.name || priceListInfo.supplier}</strong>{' '}
+                {priceListInfo.isBuiltIn
+                  ? 'demo price list.'
+                  : `price list uploaded ${new Date(priceListInfo.uploadedAt).toLocaleDateString('en-ZA')}.`}
               </>
             ) : (
               <>

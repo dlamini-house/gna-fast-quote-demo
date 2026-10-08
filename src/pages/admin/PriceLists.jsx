@@ -4,6 +4,7 @@ import AdminLayout from '../../components/AdminLayout'
 import { useAppState, currentAdmin } from '../../data/store'
 import { db } from '../../data/db'
 import { SUPPLIERS } from '../../data/suppliers'
+import { DEFAULT_PRICE_LIST } from '../../data/defaultPriceList'
 
 // Every supplier gets its own price-list record, keyed by its slug in
 // data/suppliers.js — the same slug New Quote uses to look the list up.
@@ -220,7 +221,7 @@ export default function PriceLists() {
                   <span className="flex-1 min-w-0">
                     <span className="block font-medium text-sm leading-tight">{s.name}</span>
                     <span className={`block text-[11px] ${uploaded[s.slug] ? 'text-brand-green' : 'text-gray-400'}`}>
-                      {uploaded[s.slug] ? '\u2713 Price list uploaded' : 'No price list yet'}
+                      {uploaded[s.slug] ? '\u2713 Price list uploaded' : 'Using built-in demo list'}
                     </span>
                   </span>
                 </button>
@@ -254,7 +255,7 @@ export default function PriceLists() {
               </div>
             ) : (
               <p className="text-sm text-gray-500">
-                No price list uploaded yet for {supplier.name} — quotes using this supplier fall back to the built-in reference pricing until one is uploaded.
+                No price list uploaded yet for {supplier.name} — quotes for this supplier use the built-in demo price list ({DEFAULT_PRICE_LIST.totalItems} items across {DEFAULT_PRICE_LIST.categories.length} categories) until you upload one.
               </p>
             )}
           </div>
