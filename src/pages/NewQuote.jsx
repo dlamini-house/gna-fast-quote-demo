@@ -15,6 +15,7 @@ import { LOGO_BASE64 } from '../data/logo'
 import { db } from '../data/db'
 import { SUPPLIERS } from '../data/suppliers'
 import { DEFAULT_PRICE_LIST } from '../data/defaultPriceList'
+import { DEMO_PLAN, buildTakeoff } from '../data/demoPlan'
 
 const STEPS = [
   'Select Supplier',
@@ -66,6 +67,9 @@ export default function NewQuote() {
   const [planFileName, setPlanFileName] = useState('')
   const [extracting, setExtracting] = useState(false)
   const [wasExtracted, setWasExtracted] = useState(false)
+  // Plan take-off (what the CAD reader pulled from the plan) + plan-derived labour quantities
+  const [takeoff, setTakeoff] = useState(null)
+  const [labourBasis, setLabourBasis] = useState(Object.fromEntries(LABOUR_TRADES.map((t) => [t.id, t.basis])))
 
   // Step 1: extracted material line items (qty editable, rate fixed from price list)
   const [materials, setMaterials] = useState(MOCK_EXTRACTED_MATERIALS.map((m) => ({ ...m })))
@@ -204,11 +208,18 @@ export default function NewQuote() {
   function goToReview() {
     setExtracting(true)
     setTimeout(() => {
-      setMaterials(withPriceListRates(MOCK_EXTRACTED_MATERIALS.map((m) => ({ ...m }))))
+      const result = buildTakeoff(DEMO_PLAN)
+      setTakeoff(result)
+      setMaterials(withPriceListRates(result.lines.map((m) => ({ ...m }))))
+      setLabourBasis(result.labourBasis)
+      // Pre-fill project details from the title block of the plan
+      setProjectName((v) => v || `${DEMO_PLAN.title} – Stand ${DEMO_PLAN.stand}`)
+      setClientName((v) => v || DEMO_PLAN.owner)
+      setSiteAddress((v) => v || `Stand ${DEMO_PLAN.stand}`)
       setExtracting(false)
       setWasExtracted(true)
       setStep(2)
-    }, 1400)
+    }, 2200)
   }
 
   function updateMaterialQty(id, qty) {
@@ -225,7 +236,8 @@ export default function NewQuote() {
   const labourLines = LABOUR_TRADES.map((t) => {
     const rate = parseFloat(labourRates[t.id]?.rate) || 0
     const unit = labourRates[t.id]?.unit || t.unit
-    return { ...t, unit, rate, cost: rate * t.basis }
+    const basis = labourBasis[t.id] ?? t.basis
+    return { ...t, basis, unit, rate, cost: rate * basis }
   })
   const fixedLines = LABOUR_FIXED.map((f) => ({ ...f, amount: parseFloat(fixedLabour[f.id]) || 0 }))
   const customLabourLines = customLabour.map((r) => ({
@@ -527,63 +539,192 @@ export default function NewQuote() {
 
       {/* Step 2: Review Extracted Info */}
       {step === 2 && (
-        <div className="card">
-          <h2 className="text-lg font-semibold mb-2">Review extracted info</h2>
-          <p className="text-sm text-brand-blue bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-2">
-            These quantities were estimated from your uploaded plan and mapped to items in your price
-            list. Adjust any quantity before continuing.
-          </p>
-          <p className="text-xs text-gray-500 mb-4">
-            {priceListInfo ? (
-              <>
-                &#10003; Rates are from the <strong>{supplierInfo?.name || priceListInfo.supplier}</strong>{' '}
-                {priceListInfo.isBuiltIn
-                  ? 'demo price list.'
-                  : `price list uploaded ${new Date(priceListInfo.uploadedAt).toLocaleDateString('en-ZA')}.`}
-              </>
-            ) : (
-              <>
-                Rates are the built-in reference pricing — an admin can upload a live{' '}
-                {supplierInfo?.name || 'supplier'} price list from Admin → Price Lists.
-              </>
-            )}
-          </p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 border-b">
-                  <th className="py-2 pr-2 font-medium">Source</th>
-                  <th className="py-2 pr-2 font-medium">Code</th>
-                  <th className="py-2 pr-2 font-medium">Description</th>
-                  <th className="py-2 pr-2 font-medium">Qty</th>
-                  <th className="py-2 pr-2 font-medium text-right">Rate</th>
-                  <th className="py-2 font-medium text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {materials.map((m) => (
-                  <tr key={m.id} className="border-b border-gray-100">
-                    <td className="py-2 pr-2 text-gray-500">{m.source}</td>
-                    <td className="py-2 pr-2 text-gray-500">{m.code}</td>
-                    <td className="py-2 pr-2">{m.description}</td>
-                    <td className="py-2 pr-2">
-                      <input
-                        type="number"
-                        className="w-20 border rounded px-2 py-1"
-                        value={m.qty}
-                        onChange={(e) => updateMaterialQty(m.id, e.target.value)}
-                      />
-                    </td>
-                    <td className="py-2 pr-2 text-right">R {m.rate.toFixed(2)}</td>
-                    <td className="py-2 text-right font-medium">R {((parseFloat(m.qty) || 0) * m.rate).toFixed(2)}</td>
-                  </tr>
+        <div className="space-y-6">
+          {takeoff && (
+            <div className="card">
+              <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                <div>
+                  <h2 className="text-lg font-semibold">Plan read: {DEMO_PLAN.title}</h2>
+                  <p className="text-xs text-gray-500">
+                    Stand {DEMO_PLAN.stand} · Owner {DEMO_PLAN.owner} · Site {DEMO_PLAN.siteArea} m² · {DEMO_PLAN.zoning} · {DEMO_PLAN.sheets} sheets at {DEMO_PLAN.scale}
+                  </p>
+                </div>
+                <span className="text-xs bg-green-50 text-green-700 border border-green-200 rounded-full px-3 py-1">
+                  Extracted from plan
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                {[
+                  ['Windows', takeoff.metrics.totalWindows, 'Glazing schedule'],
+                  ['Doors & gates', takeoff.metrics.totalDoors, 'Door schedule'],
+                  ['Total built area', `${DEMO_PLAN.areas.find((a) => a.name === 'Total building area').area} m²`, 'Area schedule'],
+                  ['Roof (sloped)', `${DEMO_PLAN.roof.slopedArea} m²`, `${DEMO_PLAN.roof.pitch} pitch, est.`],
+                  ['External walls', `${takeoff.metrics.extLen} m`, '220 mm, both floors'],
+                  ['Internal walls', `${takeoff.metrics.intLen} m`, '110 mm, both floors'],
+                  ['Net wall area', `${takeoff.metrics.netWall.toFixed(0)} m²`, 'after openings'],
+                  ['Plumbing fixtures', DEMO_PLAN.fixtures.filter((f) => !/gully|tap/i.test(f.name)).reduce((n, f) => n + f.qty, 0), 'Fixture tags']
+                ].map(([label, value, sub]) => (
+                  <div key={label} className="border rounded-lg px-3 py-2">
+                    <p className="text-xs text-gray-500">{label}</p>
+                    <p className="text-lg font-semibold">{value}</p>
+                    <p className="text-[11px] text-gray-400">{sub}</p>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex justify-between mt-6">
-            <button className="btn-secondary" onClick={() => setStep(1)}>Back</button>
-            <button className="btn-primary" onClick={() => setStep(3)}>Next: Add Items Not on Plan</button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <details className="border rounded-lg px-3 py-2" open>
+                  <summary className="text-sm font-medium cursor-pointer">Door schedule ({takeoff.metrics.totalDoors})</summary>
+                  <table className="w-full text-xs mt-2">
+                    <tbody>
+                      {DEMO_PLAN.doors.map((d) => (
+                        <tr key={d.tag} className="border-t border-gray-100">
+                          <td className="py-1 pr-2 font-medium">{d.tag}</td>
+                          <td className="py-1 pr-2">×{d.qty}</td>
+                          <td className="py-1 pr-2 text-gray-500">{d.w}×{d.h}</td>
+                          <td className="py-1 text-gray-600">{d.type}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </details>
+                <details className="border rounded-lg px-3 py-2" open>
+                  <summary className="text-sm font-medium cursor-pointer">Glazing schedule ({takeoff.metrics.totalWindows})</summary>
+                  <table className="w-full text-xs mt-2">
+                    <tbody>
+                      {DEMO_PLAN.windows.map((w) => (
+                        <tr key={w.tag} className="border-t border-gray-100">
+                          <td className="py-1 pr-2 font-medium">{w.tag}</td>
+                          <td className="py-1 pr-2">×{w.qty}</td>
+                          <td className="py-1 pr-2 text-gray-500">{w.w}×{w.h}</td>
+                          <td className="py-1 text-gray-600">{w.fixed ? 'Aluminium fixed panel' : 'Aluminium top-hung + fixed'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </details>
+                <details className="border rounded-lg px-3 py-2">
+                  <summary className="text-sm font-medium cursor-pointer">Areas &amp; rooms</summary>
+                  <table className="w-full text-xs mt-2">
+                    <tbody>
+                      {DEMO_PLAN.areas.map((a) => (
+                        <tr key={a.name} className={`border-t border-gray-100 ${a.total ? 'font-semibold' : ''}`}>
+                          <td className="py-1 pr-2">{a.name}</td>
+                          <td className="py-1 text-right">{a.area.toFixed(2)} m²</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {DEMO_PLAN.rooms.map((r) => `${r.name} ${r.area} m²`).join(' · ')}
+                  </p>
+                </details>
+                <details className="border rounded-lg px-3 py-2">
+                  <summary className="text-sm font-medium cursor-pointer">Fixtures, roof &amp; levels</summary>
+                  <ul className="text-xs mt-2 space-y-1">
+                    {DEMO_PLAN.fixtures.map((f) => (
+                      <li key={f.name} className="flex justify-between border-t border-gray-100 pt-1"><span>{f.name}</span><span>×{f.qty}</span></li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Roof: {DEMO_PLAN.roof.covering}, {DEMO_PLAN.roof.pitch}. Levels: {DEMO_PLAN.levels.map((l) => `${l.name} (${l.floorToFloor} m floor-to-floor)`).join(', ')}.
+                  </p>
+                </details>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-3">
+                Demo mode: this plan is read from pre-extracted data. Door/window/fixture counts come straight from the
+                plan's schedules; wall lengths are measured from the drawing; bricks, cement, roof tiles and similar
+                quantities are rule-based estimates (see the Basis column) — adjust any of them below.
+              </p>
+            </div>
+          )}
+
+          <div className="card">
+            <h2 className="text-lg font-semibold mb-2">Review extracted info</h2>
+            <p className="text-sm text-brand-blue bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-2">
+              Every plan element was paired with an item in your price list. Adjust any quantity before continuing.
+            </p>
+            <p className="text-xs text-gray-500 mb-4">
+              {priceListInfo ? (
+                <>
+                  &#10003; Rates are from the <strong>{supplierInfo?.name || priceListInfo.supplier}</strong>{' '}
+                  {priceListInfo.isBuiltIn
+                    ? 'demo price list.'
+                    : `price list uploaded ${new Date(priceListInfo.uploadedAt).toLocaleDateString('en-ZA')}.`}
+                </>
+              ) : (
+                <>
+                  Rates are the built-in reference pricing — an admin can upload a live{' '}
+                  {supplierInfo?.name || 'supplier'} price list from Admin → Price Lists.
+                </>
+              )}
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b">
+                    <th className="py-2 pr-2 font-medium">Group</th>
+                    <th className="py-2 pr-2 font-medium">Code</th>
+                    <th className="py-2 pr-2 font-medium">Description</th>
+                    <th className="py-2 pr-2 font-medium">Qty</th>
+                    <th className="py-2 pr-2 font-medium">Unit</th>
+                    <th className="py-2 pr-2 font-medium text-right">Rate</th>
+                    <th className="py-2 font-medium text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {materials.map((m) => (
+                    <tr key={m.id} className="border-b border-gray-100 align-top">
+                      <td className="py-2 pr-2 text-gray-500">{m.source}</td>
+                      <td className="py-2 pr-2 text-gray-500">{m.code}</td>
+                      <td className="py-2 pr-2">
+                        {m.description}
+                        {m.basis && (
+                          <span className="block text-[11px] text-gray-400">
+                            <span
+                              className={`inline-block rounded px-1 mr-1 ${
+                                m.basisType === 'schedule' ? 'bg-green-50 text-green-700' : m.basisType === 'measured' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
+                              }`}
+                            >
+                              {m.basisType === 'schedule' ? 'From plan' : m.basisType === 'measured' ? 'Measured' : 'Estimated'}
+                            </span>
+                            {m.basis}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-2">
+                        <input
+                          type="number"
+                          className="w-20 border rounded px-2 py-1"
+                          value={m.qty}
+                          onChange={(e) => updateMaterialQty(m.id, e.target.value)}
+                        />
+                      </td>
+                      <td className="py-2 pr-2 text-gray-500">{m.unit}</td>
+                      <td className="py-2 pr-2 text-right">R {m.rate.toFixed(2)}</td>
+                      <td className="py-2 text-right font-medium">R {((parseFloat(m.qty) || 0) * m.rate).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {takeoff && (
+              <div className="mt-5 border border-amber-200 bg-amber-50 rounded-lg px-4 py-3">
+                <p className="text-sm font-medium text-amber-800 mb-1">On the plan, but not in the price list</p>
+                <ul className="text-xs text-amber-800 space-y-0.5 list-disc pl-4">
+                  {takeoff.unmatched.map((u) => (
+                    <li key={u.item}><strong>{u.item}</strong> — {u.note}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="flex justify-between mt-6">
+              <button className="btn-secondary" onClick={() => setStep(1)}>Back</button>
+              <button className="btn-primary" onClick={() => setStep(3)}>Next: Add Items Not on Plan</button>
+            </div>
           </div>
         </div>
       )}
@@ -894,7 +1035,12 @@ export default function NewQuote() {
             <div className="space-y-3">
               {LABOUR_TRADES.map((t) => (
                 <div key={t.id} className="grid grid-cols-12 gap-2 items-center">
-                  <span className="col-span-5 text-sm">{t.label}</span>
+                  <span className="col-span-5 text-sm">
+                    {t.label}
+                    <span className="block text-xs text-gray-400">
+                      Plan quantity: {labourBasis[t.id]} {UNIT_OPTIONS.find((u) => u.id === t.unit)?.label.replace('per ', '') || ''}
+                    </span>
+                  </span>
                   <select
                     className="col-span-3 border rounded-lg px-2 py-1.5 text-sm"
                     value={labourRates[t.id].unit}
