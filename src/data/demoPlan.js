@@ -172,13 +172,9 @@ function line(group, code, desc, qty, basis, source) {
 // Plan elements the architectural drawing calls for but the standard price
 // list has no row for — shown to the estimator so they can price them manually.
 export const UNMATCHED_PLAN_ITEMS = [
-  { item: 'Fire-rated door sets (D3 ×2)', note: 'Priced as solid external doors – confirm Class B fire rating with supplier' },
-  { item: 'Automated garage-door opener (GD1)', note: 'No matching row in the price list' },
-  { item: 'Solar collector panel for hot water', note: 'Only a standard electric geyser is listed' },
-  { item: 'Door frames (pressed steel / meranti)', note: 'No frame rows in the price list' },
-  { item: 'Garden-gate auto closer & latch (GG1)', note: 'No matching row in the price list' },
   { item: 'Electrical layout', note: 'Not on the architectural plan – see the separate electrical drawing' },
-  { item: 'Floor / wall tile finishes', note: 'Finishes not specified on these sheets – add under Items Not on Plan' }
+  { item: 'Floor / wall tile finishes', note: 'Plan says "carpet or slip-free tiles as chosen by client" – add the client\'s choice under Items Not on Plan' },
+  { item: 'Chimney / braai', note: 'Plan gives no size – quantity left for the estimator (flue components are in the price list)' }
 ]
 
 export function buildTakeoff(plan = DEMO_PLAN) {
@@ -251,6 +247,13 @@ export function buildTakeoff(plan = DEMO_PLAN) {
   L.push(line('Roof', '2000100', 'Thermal insulation roll', M.ceilingArea / 20,
     `Ceiling area ${M.ceilingArea} m² ÷ ~20 m² per roll`, 'rule'))
 
+  // ---- Flat roof slab (R.CONC roof slab with Derbigum build-up) – area is an assumption
+  const flat = plan.areas.find((a) => a.name === 'Ground floor – garage').area
+  for (const [code, desc, per] of [['2000298', 'Torch-on waterproofing (Derbigum)', 1.1], ['2000299', 'Isoboard insulation 50 mm', 1.05], ['2000300', 'Dimpled drainage layer (Delta MS-8)', 1.05], ['2000301', 'Geotextile layer (roof slab)', 1.05]]) {
+    L.push(line('Flat roof', code, desc, flat * per, `R.CONC roof-slab build-up from the roof notes; flat roof assumed over the garage (${flat} m²) – confirm`, 'rule'))
+  }
+  L.push(line('Flat roof', '2000302', 'Stone aggregate 19–22 mm, 50 mm layer', flat * 0.05 * 1.1, `${flat} m² × 50 mm +10% (m³)`, 'rule'))
+
   // ---- Ceilings
   L.push(line('Ceilings', '1304135', 'Plasterboard 6.4×1200×3000 mm', (M.ceilingArea * 1.08) / 3.6,
     `First-floor ceiling ${M.ceilingArea} m² (floor area less walls) ÷ 3.6 m² per sheet, +8%`, 'rule'))
@@ -264,13 +267,20 @@ export function buildTakeoff(plan = DEMO_PLAN) {
 
   // ---- Doors (door schedule)
   const d = (tag) => plan.doors.find((x) => x.tag === tag)
-  L.push(line('Doors & Windows', '1383507', `Doors D1, D2, D3 – external / entrance doors (D1 ×${d('D1').qty}, D2 ×${d('D2').qty}, D3 ×${d('D3').qty} fire)`,
-    d('D1').qty + d('D2').qty + d('D3').qty, 'Door schedule: D1 pivot, D2 timber external, D3 fire doors ×2 (closest price-list match)', 'schedule'))
+  L.push(line('Doors & Windows', '2000288', `Door D1 – custom aluminium-framed glass pivot door (1600×2100)`, d('D1').qty, 'Door schedule: D1 ×1', 'schedule'))
+  L.push(line('Doors & Windows', '1383507', `Door D2 – medium-duty horizontal slatted timber external door`, d('D2').qty, 'Door schedule: D2 ×1', 'schedule'))
+  L.push(line('Doors & Windows', '2000289', `Door D3 – Class B fire door, horizontal slatted veneered (815×2035)`, d('D3').qty, 'Door schedule: D3 ×2 (garage-to-house fire doors)', 'schedule'))
   L.push(line('Doors & Windows', '1108846', `Internal doors D4 ×${d('D4').qty} (760×2060) + D5 ×${d('D5').qty} (650×2060)`,
     d('D4').qty + d('D5').qty, 'Door schedule: D4 ×10 + D5 ×1 hollow-core internal doors', 'schedule'))
   L.push(line('Doors & Windows', '2000105', `Folding doors FD1 ×${d('FD1').qty} (4000×2100)`, d('FD1').qty, 'Door schedule: FD1 ×2 aluminium folding doors', 'schedule'))
-  L.push(line('Doors & Windows', '2000106', `Garage door GD1 (4880×2425)`, d('GD1').qty, 'Door schedule: GD1 ×1 timber garage door', 'schedule'))
-  L.push(line('External Works', '2000262', `Garden gates GG1 ×${d('GG1').qty} (1000×1715)`, d('GG1').qty, 'Door schedule: GG1 ×2 pedestrian garden gates', 'schedule'))
+  L.push(line('Doors & Windows', '2000291', `Garage door GD1 – horizontal slatted timber (4880×2425)`, d('GD1').qty, 'Door schedule: GD1 ×1', 'schedule'))
+  L.push(line('Doors & Windows', '2000106', `Automated garage-door opener (GD1)`, d('GD1').qty, 'Door schedule GD1 accessories: "Automated garage door opener"', 'schedule'))
+  L.push(line('Doors & Windows', '2000290', `Folding door gear (FD1, specialist supplied)`, d('FD1').qty, 'Door schedule FD1 accessories: folding door gear', 'schedule'))
+  L.push(line('Doors & Windows', '2000292', `Door frames – pressed steel (D2, D3)`, d('D2').qty + d('D3').qty, 'Door schedule: frame "Pressed steel"', 'schedule'))
+  L.push(line('Doors & Windows', '2000293', `Door frames – meranti timber (D4, D5)`, d('D4').qty + d('D5').qty, 'Door schedule: frame "Meranti"', 'schedule'))
+  L.push(line('External Works', '2000262', `Garden gates GG1 ×${d('GG1').qty} (1000×1715)`, d('GG1').qty, 'Door schedule: GG1 ×2 steel-framed garden gates', 'schedule'))
+  L.push(line('External Works', '2000296', `Gate spring auto-closers 250 mm (GG1)`, d('GG1').qty, 'Door schedule GG1 accessories: 250 mm gate spring as auto closer', 'schedule'))
+  L.push(line('External Works', '2000297', `Galvanised auto gate latches 127 mm (GG1)`, d('GG1').qty, 'Door schedule GG1 accessories: 127 mm galvanized auto gate latch', 'schedule'))
   const handled = plan.doors.filter((x) => x.kind !== 'gate' && x.tag !== 'GD1' && x.tag !== 'FD1').reduce((s, x) => s + x.qty, 0)
   L.push(line('Doors & Windows', '2000118', 'Door handles / locks / hinges sets', handled,
     'One set per swing door (D1–D5)', 'schedule'))
@@ -298,6 +308,12 @@ export function buildTakeoff(plan = DEMO_PLAN) {
   L.push(line('Plumbing', '2000139', 'Kitchen sink', fx('Kitchen sink'), 'Fixture tag on floor plan', 'schedule'))
   L.push(line('Plumbing', '2000128', '200 L geyser (hot-water storage vessel)', fx('200 L hot-water storage vessel (solar, in ceiling void)'),
     'Water reticulation sheet: 200 L vessel in ceiling void', 'schedule'))
+  L.push(line('Plumbing', '2000303', 'Solar panel collector (roof-mounted)', 1, 'Roof plan: "Solar panel collector on roof"', 'schedule'))
+  L.push(line('Plumbing', '2000305', 'Water meter / meter box', 1, 'Site plan: water meter', 'schedule'))
+  L.push(line('Plumbing', '2000307', 'Open vent pipe (OVP) – 110 mm through roof', 2, 'Drainage notes: OVP to protrude min 100 mm above roof (one per stack, assumed 2)', 'rule'))
+  L.push(line('Plumbing', '2000306', 'uPVC 50 mm dia waste pipe (lengths)', 8, 'Drainage notes: basins, sinks, baths, showers on 50 mm waste; ≈48 m ÷ 6 m', 'rule'))
+  L.push(line('Plumbing', '2000308', 'Floor gully traps', fx('Floor gully'), 'Floor gully tags on GF plan', 'schedule'))
+  L.push(line('Plumbing', '2000309', 'Washing-machine / dishwasher / dryer connection points', fx('Dishwasher point') + fx('Washing-machine point') + fx('Tumble-dryer point'), 'Appliance tags on GF plan', 'schedule'))
   L.push(line('Plumbing', '2000129', 'Geyser drip tray', 1, 'One per geyser', 'rule'))
   L.push(line('Plumbing', '2000130', 'Geyser valves / vacuum breakers', 1, 'One set per geyser', 'rule'))
   L.push(line('Plumbing', '2000147', 'Garden tap', fx('Garden tap'), 'Water-reticulation sheet: tap at water meter', 'schedule'))

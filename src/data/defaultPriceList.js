@@ -5,8 +5,8 @@
 // overrides it for that supplier.
 export const DEFAULT_PRICE_LIST = {
  "supplier": "Built-in demo price list",
- "fileName": "GNA Constraction price list App data.xlsx (built in)",
- "uploadedAt": "2026-10-08T00:00:00.000Z",
+ "fileName": "GNA Constraction price list App data v3.xlsx (built in)",
+ "uploadedAt": "2026-10-13T00:00:00.000Z",
  "uploadedBy": "built-in demo data",
  "categories": [
   {
@@ -198,7 +198,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000024",
-     "description": "Precast concrete lintels",
+     "description": "Lintels – reinforced concrete (RC) / precast concrete",
      "quantity": null,
      "unit": "EA",
      "price": 297.81,
@@ -291,6 +291,14 @@ export const DEFAULT_PRICE_LIST = {
      "unit": "EA",
      "price": 199.96,
      "priceInclVat": 229.95
+    },
+    {
+     "code": "2000311",
+     "description": "Chimney / braai flue components (to manufacturer size)",
+     "quantity": null,
+     "unit": "EA",
+     "price": 3850,
+     "priceInclVat": 4427.5
     }
    ]
   },
@@ -299,7 +307,7 @@ export const DEFAULT_PRICE_LIST = {
    "items": [
     {
      "code": "9/0190894",
-     "description": "Ready-mix concrete",
+     "description": "Ready-mix concrete – R.CONC slabs, footings & lintels (25 MPa)",
      "quantity": null,
      "unit": "EA",
      "price": 1635.29,
@@ -343,7 +351,7 @@ export const DEFAULT_PRICE_LIST = {
      "quantity": null,
      "unit": "EA",
      "price": 512.17,
-     "priceInclVat": 589.0
+     "priceInclVat": 589
     },
     {
      "code": "2000038",
@@ -408,6 +416,14 @@ export const DEFAULT_PRICE_LIST = {
      "unit": "EA",
      "price": 363.88,
      "priceInclVat": 418.46
+    },
+    {
+     "code": "2000312",
+     "description": "Compacted engineered fill (filling to engineer's spec)",
+     "quantity": null,
+     "unit": "M3",
+     "price": 245,
+     "priceInclVat": 281.75
     }
    ]
   },
@@ -443,7 +459,7 @@ export const DEFAULT_PRICE_LIST = {
      "description": "Flat steel bar",
      "quantity": null,
      "unit": "LENGTH",
-     "price": 596.0,
+     "price": 596,
      "priceInclVat": 685.4
     },
     {
@@ -557,7 +573,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000062",
-     "description": "Battens",
+     "description": "SAP timber roof battens",
      "quantity": null,
      "unit": "LENGTH",
      "price": 503.93,
@@ -565,7 +581,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000063",
-     "description": "Wall plates",
+     "description": "Wallplates",
      "quantity": null,
      "unit": "LENGTH",
      "price": 328.65,
@@ -573,7 +589,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000064",
-     "description": "Truss timber",
+     "description": "SAP timber (Grade 6) truss timber",
      "quantity": null,
      "unit": "LENGTH",
      "price": 462.93,
@@ -589,7 +605,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000066",
-     "description": "Prefabricated roof trusses",
+     "description": "Prefabricated SAP timber (Grade 6) roof trusses – 760 mm c/c, specialist designed & supplied",
      "quantity": null,
      "unit": "EA",
      "price": 1024.06,
@@ -605,7 +621,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000068",
-     "description": "Concrete roof tiles",
+     "description": "Double-Roman concrete roof tiles (slate standard colour)",
      "quantity": null,
      "unit": "EA",
      "price": 12.6,
@@ -649,11 +665,11 @@ export const DEFAULT_PRICE_LIST = {
      "quantity": null,
      "unit": "EA",
      "price": 433.91,
-     "priceInclVat": 499.0
+     "priceInclVat": 499
     },
     {
      "code": "2000073",
-     "description": "Ridge / hip / verge / valley",
+     "description": "Ridge, hip, verge & valley tiles / capping",
      "quantity": null,
      "unit": "LENGTH",
      "price": 143.99,
@@ -677,7 +693,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000076",
-     "description": "Fascia boards",
+     "description": "Cement-fibre fascia boards (painted to match roof)",
      "quantity": null,
      "unit": "LENGTH",
      "price": 248.94,
@@ -730,6 +746,46 @@ export const DEFAULT_PRICE_LIST = {
      "unit": "EA",
      "price": 478.99,
      "priceInclVat": 550.84
+    },
+    {
+     "code": "2000302",
+     "description": "Stone aggregate 19–22 mm (50 mm layer on roof slab)",
+     "quantity": null,
+     "unit": "M3",
+     "price": 585,
+     "priceInclVat": 672.75
+    },
+    {
+     "code": "2000301",
+     "description": "Geotextile layer (roof slab)",
+     "quantity": null,
+     "unit": "M2",
+     "price": 24,
+     "priceInclVat": 27.6
+    },
+    {
+     "code": "2000300",
+     "description": "Dimpled drainage layer (e.g. Delta MS-8)",
+     "quantity": null,
+     "unit": "M2",
+     "price": 96,
+     "priceInclVat": 110.4
+    },
+    {
+     "code": "2000299",
+     "description": "Isoboard insulation 50 mm",
+     "quantity": null,
+     "unit": "M2",
+     "price": 214,
+     "priceInclVat": 246.1
+    },
+    {
+     "code": "2000298",
+     "description": "Torch-on waterproofing membrane (e.g. Derbigum)",
+     "quantity": null,
+     "unit": "M2",
+     "price": 168,
+     "priceInclVat": 193.2
     }
    ]
   },
@@ -738,7 +794,7 @@ export const DEFAULT_PRICE_LIST = {
    "items": [
     {
      "code": "1304135",
-     "description": "Standard gypsum board",
+     "description": "Standard gypsum ceiling board (6.4 / 9.5 mm) – flush plastered ceiling",
      "quantity": null,
      "unit": "EA",
      "price": 247.82,
@@ -865,6 +921,14 @@ export const DEFAULT_PRICE_LIST = {
      "priceInclVat": 183.22
     },
     {
+     "code": "2000310",
+     "description": "Plasterband 150 mm (ceiling-to-wall junction)",
+     "quantity": null,
+     "unit": "LENGTH",
+     "price": 74,
+     "priceInclVat": 85.1
+    },
+    {
      "code": "2000098",
      "description": "Shadow-line trims",
      "quantity": null,
@@ -882,7 +946,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000100",
-     "description": "Thermal insulation",
+     "description": "Thermal ceiling insulation – 135 mm Alutherm 'AF' (laid on ceiling board)",
      "quantity": null,
      "unit": "ROLL",
      "price": 357.73,
@@ -898,7 +962,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000102",
-     "description": "Access panels",
+     "description": "Ceiling access panels",
      "quantity": null,
      "unit": "EA",
      "price": 347.58,
@@ -911,15 +975,31 @@ export const DEFAULT_PRICE_LIST = {
    "items": [
     {
      "code": "1383507",
-     "description": "External entrance doors",
+     "description": "External doors – medium-duty horizontal slatted timber door (frame excl.)",
      "quantity": null,
      "unit": "EA",
      "price": 1520.87,
-     "priceInclVat": 1749.0
+     "priceInclVat": 1749
+    },
+    {
+     "code": "2000288",
+     "description": "Aluminium-framed glass pivot door – custom, single-glazed Low-E, powder-coated",
+     "quantity": null,
+     "unit": "EA",
+     "price": 13850,
+     "priceInclVat": 15927.5
+    },
+    {
+     "code": "2000289",
+     "description": "Class B fire door – horizontal slatted veneered (garage-to-house)",
+     "quantity": null,
+     "unit": "EA",
+     "price": 3640,
+     "priceInclVat": 4186
     },
     {
      "code": "1108846",
-     "description": "Internal doors",
+     "description": "Internal doors – horizontal slatted hollow-core door (frame excl.)",
      "quantity": null,
      "unit": "EA",
      "price": 329.56,
@@ -942,8 +1022,16 @@ export const DEFAULT_PRICE_LIST = {
      "priceInclVat": 989.66
     },
     {
+     "code": "2000290",
+     "description": "Folding door gear (specialist supplied)",
+     "quantity": null,
+     "unit": "EA",
+     "price": 1950,
+     "priceInclVat": 2242.5
+    },
+    {
      "code": "2000105",
-     "description": "Sliding / stacker / folding doors",
+     "description": "Aluminium folding / sliding / stacker doors – centre opening, powder-coated",
      "quantity": null,
      "unit": "EA",
      "price": 8232.02,
@@ -951,11 +1039,19 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000106",
-     "description": "Garage doors",
+     "description": "Automated garage-door opener",
      "quantity": null,
      "unit": "EA",
      "price": 1899.95,
      "priceInclVat": 2184.94
+    },
+    {
+     "code": "2000291",
+     "description": "Horizontal slatted timber garage door",
+     "quantity": null,
+     "unit": "EA",
+     "price": 8950,
+     "priceInclVat": 10292.5
     },
     {
      "code": "2000107",
@@ -975,7 +1071,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "1339138",
-     "description": "Awning / top-hung windows",
+     "description": "Aluminium windows – top-hung opening section and fixed (black powder-coated)",
      "quantity": null,
      "unit": "EA",
      "price": 935.85,
@@ -983,10 +1079,10 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000109",
-     "description": "Fixed windows",
+     "description": "Aluminium windows – fixed panel",
      "quantity": null,
      "unit": "EA",
-     "price": 2010.0,
+     "price": 2010,
      "priceInclVat": 2311.5
     },
     {
@@ -1047,7 +1143,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000117",
-     "description": "Low-E / double glazing",
+     "description": "Low-E coated glass – single or double glazed (max U-value 4.3 W/m²·K, SANS 204)",
      "quantity": null,
      "unit": "M2",
      "price": 353.13,
@@ -1055,11 +1151,27 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000118",
-     "description": "Handles / locks / hinges / closers",
+     "description": "Door locksets / hinges / handles / closers",
      "quantity": null,
      "unit": "EA",
      "price": 491.48,
      "priceInclVat": 565.2
+    },
+    {
+     "code": "2000293",
+     "description": "Door frames – meranti timber",
+     "quantity": null,
+     "unit": "EA",
+     "price": 640,
+     "priceInclVat": 736
+    },
+    {
+     "code": "2000292",
+     "description": "Door frames – pressed steel",
+     "quantity": null,
+     "unit": "EA",
+     "price": 585,
+     "priceInclVat": 672.75
     },
     {
      "code": "2000119",
@@ -1100,6 +1212,22 @@ export const DEFAULT_PRICE_LIST = {
      "unit": "EA",
      "price": 80.37,
      "priceInclVat": 92.43
+    },
+    {
+     "code": "2000295",
+     "description": "Stainless-steel balustrade – 1 m high, max 100 mm openings",
+     "quantity": null,
+     "unit": "M",
+     "price": 1480,
+     "priceInclVat": 1702
+    },
+    {
+     "code": "2000294",
+     "description": "Glass balustrade – 1 m high, max 100 mm spacing",
+     "quantity": null,
+     "unit": "M",
+     "price": 2150,
+     "priceInclVat": 2472.5
     }
    ]
   },
@@ -1108,11 +1236,27 @@ export const DEFAULT_PRICE_LIST = {
    "items": [
     {
      "code": "2000124",
-     "description": "uPVC / PPR / copper water pipe",
+     "description": "Ø20 water pipe – hot & cold supply (uPVC / PPR / copper)",
      "quantity": null,
      "unit": "LENGTH",
      "price": 298.99,
      "priceInclVat": 343.84
+    },
+    {
+     "code": "2000304",
+     "description": "Ø25 HDPE Class PN10 underground water pipe (from municipal connection)",
+     "quantity": null,
+     "unit": "M",
+     "price": 42,
+     "priceInclVat": 48.3
+    },
+    {
+     "code": "2000305",
+     "description": "Water meter / meter box",
+     "quantity": null,
+     "unit": "EA",
+     "price": 1240,
+     "priceInclVat": 1426
     },
     {
      "code": "2000125",
@@ -1140,7 +1284,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000128",
-     "description": "Electric geyser",
+     "description": "Hot-water storage vessel 200 L / electric geyser",
      "quantity": null,
      "unit": "EA",
      "price": 3740.29,
@@ -1159,12 +1303,12 @@ export const DEFAULT_PRICE_LIST = {
      "description": "Geyser valves / vacuum breakers",
      "quantity": null,
      "unit": "EA",
-     "price": 352.0,
+     "price": 352,
      "priceInclVat": 404.8
     },
     {
      "code": "2000131",
-     "description": "Pressure reducing valve",
+     "description": "PCV – pressure control valve (pressure reducing)",
      "quantity": null,
      "unit": "EA",
      "price": 538.33,
@@ -1187,8 +1331,16 @@ export const DEFAULT_PRICE_LIST = {
      "priceInclVat": 157.34
     },
     {
+     "code": "2000303",
+     "description": "Solar panel collector (roof-mounted)",
+     "quantity": null,
+     "unit": "EA",
+     "price": 8950,
+     "priceInclVat": 10292.5
+    },
+    {
      "code": "2000134",
-     "description": "Toilet / cistern",
+     "description": "WC suite / cistern",
      "quantity": null,
      "unit": "EA",
      "price": 1345.66,
@@ -1196,7 +1348,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000135",
-     "description": "Basin / pedestal / waste",
+     "description": "Hand-wash basin (HWB) / pedestal / waste",
      "quantity": null,
      "unit": "EA",
      "price": 1190.26,
@@ -1243,12 +1395,36 @@ export const DEFAULT_PRICE_LIST = {
      "priceInclVat": 2001.86
     },
     {
+     "code": "2000309",
+     "description": "Washing-machine / dishwasher / dryer connection points",
+     "quantity": null,
+     "unit": "EA",
+     "price": 320,
+     "priceInclVat": 368
+    },
+    {
      "code": "2000141",
-     "description": "uPVC sewer pipe",
+     "description": "uPVC 110 mm dia sewer / soil pipe",
      "quantity": null,
      "unit": "LENGTH",
      "price": 295.34,
      "priceInclVat": 339.64
+    },
+    {
+     "code": "2000306",
+     "description": "uPVC 50 mm dia waste pipe",
+     "quantity": null,
+     "unit": "LENGTH",
+     "price": 118,
+     "priceInclVat": 135.7
+    },
+    {
+     "code": "2000307",
+     "description": "Open vent pipe (OVP) – 110 mm uPVC, min 100 mm above roof",
+     "quantity": null,
+     "unit": "EA",
+     "price": 245,
+     "priceInclVat": 281.75
     },
     {
      "code": "2000142",
@@ -1267,8 +1443,16 @@ export const DEFAULT_PRICE_LIST = {
      "priceInclVat": 328.85
     },
     {
+     "code": "2000308",
+     "description": "Floor gully trap",
+     "quantity": null,
+     "unit": "EA",
+     "price": 168,
+     "priceInclVat": 193.2
+    },
+    {
      "code": "2000144",
-     "description": "Inspection chambers / covers",
+     "description": "Inspection chambers / manhole covers",
      "quantity": null,
      "unit": "EA",
      "price": 692.29,
@@ -1279,7 +1463,7 @@ export const DEFAULT_PRICE_LIST = {
      "description": "Stormwater pipe / fittings",
      "quantity": null,
      "unit": "LENGTH",
-     "price": 223.0,
+     "price": 223,
      "priceInclVat": 256.45
     },
     {
@@ -1292,7 +1476,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000147",
-     "description": "Garden taps / hose bibs",
+     "description": "Garden taps / hose bibs (gully + tap)",
      "quantity": null,
      "unit": "EA",
      "price": 210.95,
@@ -1320,7 +1504,7 @@ export const DEFAULT_PRICE_LIST = {
      "quantity": null,
      "unit": "EA",
      "price": 5392.17,
-     "priceInclVat": 6201.0
+     "priceInclVat": 6201
     },
     {
      "code": "2000151",
@@ -1481,7 +1665,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000170",
-     "description": "Exterior fittings",
+     "description": "Garden lights / exterior fittings",
      "quantity": null,
      "unit": "EA",
      "price": 225.66,
@@ -1510,6 +1694,14 @@ export const DEFAULT_PRICE_LIST = {
      "unit": "EA",
      "price": 2588.61,
      "priceInclVat": 2976.9
+    },
+    {
+     "code": "2000314",
+     "description": "Remote gate controls",
+     "quantity": null,
+     "unit": "EA",
+     "price": 640,
+     "priceInclVat": 736
     },
     {
      "code": "2000174",
@@ -1630,7 +1822,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000188",
-     "description": "Outdoor / non-slip tiles",
+     "description": "Slip-free / outdoor non-slip tiles",
      "quantity": null,
      "unit": "M2",
      "price": 422.91,
@@ -1681,8 +1873,8 @@ export const DEFAULT_PRICE_LIST = {
      "description": "Tile spacers",
      "quantity": null,
      "unit": "M2",
-     "price": 460.0,
-     "priceInclVat": 529.0
+     "price": 460,
+     "priceInclVat": 529
     },
     {
      "code": "2000195",
@@ -1702,7 +1894,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000197",
-     "description": "Floor screed",
+     "description": "Floor screed (min 75 mm concrete screed / 30 mm roof screed at 1:50 fall)",
      "quantity": null,
      "unit": "BAG",
      "price": 202.33,
@@ -1747,6 +1939,14 @@ export const DEFAULT_PRICE_LIST = {
      "unit": "EA",
      "price": 65.92,
      "priceInclVat": 75.81
+    },
+    {
+     "code": "2000313",
+     "description": "Carpet (floor finish – client's choice)",
+     "quantity": null,
+     "unit": "M2",
+     "price": 285,
+     "priceInclVat": 327.75
     }
    ]
   },
@@ -1771,7 +1971,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000205",
-     "description": "Enamel / trim paint",
+     "description": "Satin enamel / trim paint (door & window frames, gates)",
      "quantity": null,
      "unit": "5L",
      "price": 469.61,
@@ -1779,7 +1979,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000206",
-     "description": "Exterior wall paint",
+     "description": "Exterior wall paint – primary / secondary / accent colours",
      "quantity": null,
      "unit": "5L",
      "price": 432.41,
@@ -1867,7 +2067,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000217",
-     "description": "Wood primer / varnish / enamel",
+     "description": "Timber preservative / wood primer / varnish / enamel",
      "quantity": null,
      "unit": "5L",
      "price": 630.12,
@@ -2012,7 +2212,7 @@ export const DEFAULT_PRICE_LIST = {
      "quantity": null,
      "unit": "EA",
      "price": 442.61,
-     "priceInclVat": 509.0
+     "priceInclVat": 509
     },
     {
      "code": "2000234",
@@ -2141,11 +2341,27 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000249",
-     "description": "Gloves / masks / eye protection",
+     "description": "Safety gloves (pair)",
      "quantity": null,
-     "unit": "EA",
+     "unit": "PAIR",
      "price": 79.76,
      "priceInclVat": 91.72
+    },
+    {
+     "code": "2000317",
+     "description": "Dust masks (box of 20)",
+     "quantity": null,
+     "unit": "BOX",
+     "price": 148.5,
+     "priceInclVat": 170.77
+    },
+    {
+     "code": "2000318",
+     "description": "Eye protection – safety glasses / goggles",
+     "quantity": null,
+     "unit": "EA",
+     "price": 62.4,
+     "priceInclVat": 71.76
     }
    ]
   },
@@ -2218,11 +2434,11 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000258",
-     "description": "Boundary wall materials",
+     "description": "Boundary / screen wall materials (up to 2.1 m high)",
      "quantity": null,
      "unit": "EA",
      "price": 586.09,
-     "priceInclVat": 674.0
+     "priceInclVat": 674
     },
     {
      "code": "2000259",
@@ -2250,7 +2466,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000262",
-     "description": "Pedestrian gates",
+     "description": "Garden gates – steel-framed horizontal slatted (50×50 SHS)",
      "quantity": null,
      "unit": "EA",
      "price": 2201.21,
@@ -2258,7 +2474,7 @@ export const DEFAULT_PRICE_LIST = {
     },
     {
      "code": "2000263",
-     "description": "Driveway gates",
+     "description": "Vehicle entrance / driveway gates",
      "quantity": null,
      "unit": "EA",
      "price": 10295.13,
@@ -2271,6 +2487,22 @@ export const DEFAULT_PRICE_LIST = {
      "unit": "EA",
      "price": 5430.66,
      "priceInclVat": 6245.26
+    },
+    {
+     "code": "2000296",
+     "description": "Gate spring auto-closer 250 mm",
+     "quantity": null,
+     "unit": "EA",
+     "price": 185,
+     "priceInclVat": 212.75
+    },
+    {
+     "code": "2000297",
+     "description": "Galvanised auto gate latch 127 mm",
+     "quantity": null,
+     "unit": "EA",
+     "price": 96,
+     "priceInclVat": 110.4
     },
     {
      "code": "2000265",
@@ -2350,6 +2582,14 @@ export const DEFAULT_PRICE_LIST = {
      "priceInclVat": 225.79
     },
     {
+     "code": "2000315",
+     "description": "Torch-on waterproofing installation",
+     "quantity": null,
+     "unit": "M2",
+     "price": 95,
+     "priceInclVat": 109.25
+    },
+    {
      "code": "2000274",
      "description": "Ceiling installation",
      "quantity": null,
@@ -2364,6 +2604,14 @@ export const DEFAULT_PRICE_LIST = {
      "unit": "EA",
      "price": 861.4,
      "priceInclVat": 990.61
+    },
+    {
+     "code": "2000316",
+     "description": "Gate & garage-door installation",
+     "quantity": null,
+     "unit": "EA",
+     "price": 1650,
+     "priceInclVat": 1897.5
     },
     {
      "code": "2000276",
@@ -2674,7 +2922,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000024",
-   "description": "Precast concrete lintels",
+   "description": "Lintels – reinforced concrete (RC) / precast concrete",
    "quantity": null,
    "unit": "EA",
    "price": 297.81,
@@ -2781,8 +3029,17 @@ export const DEFAULT_PRICE_LIST = {
    "category": "01 Building & Masonry"
   },
   {
+   "code": "2000311",
+   "description": "Chimney / braai flue components (to manufacturer size)",
+   "quantity": null,
+   "unit": "EA",
+   "price": 3850,
+   "priceInclVat": 4427.5,
+   "category": "01 Building & Masonry"
+  },
+  {
    "code": "9/0190894",
-   "description": "Ready-mix concrete",
+   "description": "Ready-mix concrete – R.CONC slabs, footings & lintels (25 MPa)",
    "quantity": null,
    "unit": "EA",
    "price": 1635.29,
@@ -2831,7 +3088,7 @@ export const DEFAULT_PRICE_LIST = {
    "quantity": null,
    "unit": "EA",
    "price": 512.17,
-   "priceInclVat": 589.0,
+   "priceInclVat": 589,
    "category": "02 Concrete & Foundations"
   },
   {
@@ -2907,6 +3164,15 @@ export const DEFAULT_PRICE_LIST = {
    "category": "02 Concrete & Foundations"
   },
   {
+   "code": "2000312",
+   "description": "Compacted engineered fill (filling to engineer's spec)",
+   "quantity": null,
+   "unit": "M3",
+   "price": 245,
+   "priceInclVat": 281.75,
+   "category": "02 Concrete & Foundations"
+  },
+  {
    "code": "2000046",
    "description": "IPE / UB / UC / H beams",
    "quantity": null,
@@ -2938,7 +3204,7 @@ export const DEFAULT_PRICE_LIST = {
    "description": "Flat steel bar",
    "quantity": null,
    "unit": "LENGTH",
-   "price": 596.0,
+   "price": 596,
    "priceInclVat": 685.4,
    "category": "03 Structural Steel"
   },
@@ -3061,7 +3327,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000062",
-   "description": "Battens",
+   "description": "SAP timber roof battens",
    "quantity": null,
    "unit": "LENGTH",
    "price": 503.93,
@@ -3070,7 +3336,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000063",
-   "description": "Wall plates",
+   "description": "Wallplates",
    "quantity": null,
    "unit": "LENGTH",
    "price": 328.65,
@@ -3079,7 +3345,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000064",
-   "description": "Truss timber",
+   "description": "SAP timber (Grade 6) truss timber",
    "quantity": null,
    "unit": "LENGTH",
    "price": 462.93,
@@ -3097,7 +3363,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000066",
-   "description": "Prefabricated roof trusses",
+   "description": "Prefabricated SAP timber (Grade 6) roof trusses – 760 mm c/c, specialist designed & supplied",
    "quantity": null,
    "unit": "EA",
    "price": 1024.06,
@@ -3115,7 +3381,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000068",
-   "description": "Concrete roof tiles",
+   "description": "Double-Roman concrete roof tiles (slate standard colour)",
    "quantity": null,
    "unit": "EA",
    "price": 12.6,
@@ -3164,12 +3430,12 @@ export const DEFAULT_PRICE_LIST = {
    "quantity": null,
    "unit": "EA",
    "price": 433.91,
-   "priceInclVat": 499.0,
+   "priceInclVat": 499,
    "category": "04 Timber & Roofing"
   },
   {
    "code": "2000073",
-   "description": "Ridge / hip / verge / valley",
+   "description": "Ridge, hip, verge & valley tiles / capping",
    "quantity": null,
    "unit": "LENGTH",
    "price": 143.99,
@@ -3196,7 +3462,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000076",
-   "description": "Fascia boards",
+   "description": "Cement-fibre fascia boards (painted to match roof)",
    "quantity": null,
    "unit": "LENGTH",
    "price": 248.94,
@@ -3258,8 +3524,53 @@ export const DEFAULT_PRICE_LIST = {
    "category": "04 Timber & Roofing"
   },
   {
+   "code": "2000302",
+   "description": "Stone aggregate 19–22 mm (50 mm layer on roof slab)",
+   "quantity": null,
+   "unit": "M3",
+   "price": 585,
+   "priceInclVat": 672.75,
+   "category": "04 Timber & Roofing"
+  },
+  {
+   "code": "2000301",
+   "description": "Geotextile layer (roof slab)",
+   "quantity": null,
+   "unit": "M2",
+   "price": 24,
+   "priceInclVat": 27.6,
+   "category": "04 Timber & Roofing"
+  },
+  {
+   "code": "2000300",
+   "description": "Dimpled drainage layer (e.g. Delta MS-8)",
+   "quantity": null,
+   "unit": "M2",
+   "price": 96,
+   "priceInclVat": 110.4,
+   "category": "04 Timber & Roofing"
+  },
+  {
+   "code": "2000299",
+   "description": "Isoboard insulation 50 mm",
+   "quantity": null,
+   "unit": "M2",
+   "price": 214,
+   "priceInclVat": 246.1,
+   "category": "04 Timber & Roofing"
+  },
+  {
+   "code": "2000298",
+   "description": "Torch-on waterproofing membrane (e.g. Derbigum)",
+   "quantity": null,
+   "unit": "M2",
+   "price": 168,
+   "priceInclVat": 193.2,
+   "category": "04 Timber & Roofing"
+  },
+  {
    "code": "1304135",
-   "description": "Standard gypsum board",
+   "description": "Standard gypsum ceiling board (6.4 / 9.5 mm) – flush plastered ceiling",
    "quantity": null,
    "unit": "EA",
    "price": 247.82,
@@ -3402,6 +3713,15 @@ export const DEFAULT_PRICE_LIST = {
    "category": "05 Ceilings"
   },
   {
+   "code": "2000310",
+   "description": "Plasterband 150 mm (ceiling-to-wall junction)",
+   "quantity": null,
+   "unit": "LENGTH",
+   "price": 74,
+   "priceInclVat": 85.1,
+   "category": "05 Ceilings"
+  },
+  {
    "code": "2000098",
    "description": "Shadow-line trims",
    "quantity": null,
@@ -3421,7 +3741,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000100",
-   "description": "Thermal insulation",
+   "description": "Thermal ceiling insulation – 135 mm Alutherm 'AF' (laid on ceiling board)",
    "quantity": null,
    "unit": "ROLL",
    "price": 357.73,
@@ -3439,7 +3759,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000102",
-   "description": "Access panels",
+   "description": "Ceiling access panels",
    "quantity": null,
    "unit": "EA",
    "price": 347.58,
@@ -3448,16 +3768,34 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "1383507",
-   "description": "External entrance doors",
+   "description": "External doors – medium-duty horizontal slatted timber door (frame excl.)",
    "quantity": null,
    "unit": "EA",
    "price": 1520.87,
-   "priceInclVat": 1749.0,
+   "priceInclVat": 1749,
+   "category": "06 Doors & Windows"
+  },
+  {
+   "code": "2000288",
+   "description": "Aluminium-framed glass pivot door – custom, single-glazed Low-E, powder-coated",
+   "quantity": null,
+   "unit": "EA",
+   "price": 13850,
+   "priceInclVat": 15927.5,
+   "category": "06 Doors & Windows"
+  },
+  {
+   "code": "2000289",
+   "description": "Class B fire door – horizontal slatted veneered (garage-to-house)",
+   "quantity": null,
+   "unit": "EA",
+   "price": 3640,
+   "priceInclVat": 4186,
    "category": "06 Doors & Windows"
   },
   {
    "code": "1108846",
-   "description": "Internal doors",
+   "description": "Internal doors – horizontal slatted hollow-core door (frame excl.)",
    "quantity": null,
    "unit": "EA",
    "price": 329.56,
@@ -3483,8 +3821,17 @@ export const DEFAULT_PRICE_LIST = {
    "category": "06 Doors & Windows"
   },
   {
+   "code": "2000290",
+   "description": "Folding door gear (specialist supplied)",
+   "quantity": null,
+   "unit": "EA",
+   "price": 1950,
+   "priceInclVat": 2242.5,
+   "category": "06 Doors & Windows"
+  },
+  {
    "code": "2000105",
-   "description": "Sliding / stacker / folding doors",
+   "description": "Aluminium folding / sliding / stacker doors – centre opening, powder-coated",
    "quantity": null,
    "unit": "EA",
    "price": 8232.02,
@@ -3493,11 +3840,20 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000106",
-   "description": "Garage doors",
+   "description": "Automated garage-door opener",
    "quantity": null,
    "unit": "EA",
    "price": 1899.95,
    "priceInclVat": 2184.94,
+   "category": "06 Doors & Windows"
+  },
+  {
+   "code": "2000291",
+   "description": "Horizontal slatted timber garage door",
+   "quantity": null,
+   "unit": "EA",
+   "price": 8950,
+   "priceInclVat": 10292.5,
    "category": "06 Doors & Windows"
   },
   {
@@ -3520,7 +3876,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "1339138",
-   "description": "Awning / top-hung windows",
+   "description": "Aluminium windows – top-hung opening section and fixed (black powder-coated)",
    "quantity": null,
    "unit": "EA",
    "price": 935.85,
@@ -3529,10 +3885,10 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000109",
-   "description": "Fixed windows",
+   "description": "Aluminium windows – fixed panel",
    "quantity": null,
    "unit": "EA",
-   "price": 2010.0,
+   "price": 2010,
    "priceInclVat": 2311.5,
    "category": "06 Doors & Windows"
   },
@@ -3601,7 +3957,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000117",
-   "description": "Low-E / double glazing",
+   "description": "Low-E coated glass – single or double glazed (max U-value 4.3 W/m²·K, SANS 204)",
    "quantity": null,
    "unit": "M2",
    "price": 353.13,
@@ -3610,11 +3966,29 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000118",
-   "description": "Handles / locks / hinges / closers",
+   "description": "Door locksets / hinges / handles / closers",
    "quantity": null,
    "unit": "EA",
    "price": 491.48,
    "priceInclVat": 565.2,
+   "category": "06 Doors & Windows"
+  },
+  {
+   "code": "2000293",
+   "description": "Door frames – meranti timber",
+   "quantity": null,
+   "unit": "EA",
+   "price": 640,
+   "priceInclVat": 736,
+   "category": "06 Doors & Windows"
+  },
+  {
+   "code": "2000292",
+   "description": "Door frames – pressed steel",
+   "quantity": null,
+   "unit": "EA",
+   "price": 585,
+   "priceInclVat": 672.75,
    "category": "06 Doors & Windows"
   },
   {
@@ -3663,12 +4037,48 @@ export const DEFAULT_PRICE_LIST = {
    "category": "06 Doors & Windows"
   },
   {
+   "code": "2000295",
+   "description": "Stainless-steel balustrade – 1 m high, max 100 mm openings",
+   "quantity": null,
+   "unit": "M",
+   "price": 1480,
+   "priceInclVat": 1702,
+   "category": "06 Doors & Windows"
+  },
+  {
+   "code": "2000294",
+   "description": "Glass balustrade – 1 m high, max 100 mm spacing",
+   "quantity": null,
+   "unit": "M",
+   "price": 2150,
+   "priceInclVat": 2472.5,
+   "category": "06 Doors & Windows"
+  },
+  {
    "code": "2000124",
-   "description": "uPVC / PPR / copper water pipe",
+   "description": "Ø20 water pipe – hot & cold supply (uPVC / PPR / copper)",
    "quantity": null,
    "unit": "LENGTH",
    "price": 298.99,
    "priceInclVat": 343.84,
+   "category": "07 Plumbing"
+  },
+  {
+   "code": "2000304",
+   "description": "Ø25 HDPE Class PN10 underground water pipe (from municipal connection)",
+   "quantity": null,
+   "unit": "M",
+   "price": 42,
+   "priceInclVat": 48.3,
+   "category": "07 Plumbing"
+  },
+  {
+   "code": "2000305",
+   "description": "Water meter / meter box",
+   "quantity": null,
+   "unit": "EA",
+   "price": 1240,
+   "priceInclVat": 1426,
    "category": "07 Plumbing"
   },
   {
@@ -3700,7 +4110,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000128",
-   "description": "Electric geyser",
+   "description": "Hot-water storage vessel 200 L / electric geyser",
    "quantity": null,
    "unit": "EA",
    "price": 3740.29,
@@ -3721,13 +4131,13 @@ export const DEFAULT_PRICE_LIST = {
    "description": "Geyser valves / vacuum breakers",
    "quantity": null,
    "unit": "EA",
-   "price": 352.0,
+   "price": 352,
    "priceInclVat": 404.8,
    "category": "07 Plumbing"
   },
   {
    "code": "2000131",
-   "description": "Pressure reducing valve",
+   "description": "PCV – pressure control valve (pressure reducing)",
    "quantity": null,
    "unit": "EA",
    "price": 538.33,
@@ -3753,8 +4163,17 @@ export const DEFAULT_PRICE_LIST = {
    "category": "07 Plumbing"
   },
   {
+   "code": "2000303",
+   "description": "Solar panel collector (roof-mounted)",
+   "quantity": null,
+   "unit": "EA",
+   "price": 8950,
+   "priceInclVat": 10292.5,
+   "category": "07 Plumbing"
+  },
+  {
    "code": "2000134",
-   "description": "Toilet / cistern",
+   "description": "WC suite / cistern",
    "quantity": null,
    "unit": "EA",
    "price": 1345.66,
@@ -3763,7 +4182,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000135",
-   "description": "Basin / pedestal / waste",
+   "description": "Hand-wash basin (HWB) / pedestal / waste",
    "quantity": null,
    "unit": "EA",
    "price": 1190.26,
@@ -3816,12 +4235,39 @@ export const DEFAULT_PRICE_LIST = {
    "category": "07 Plumbing"
   },
   {
+   "code": "2000309",
+   "description": "Washing-machine / dishwasher / dryer connection points",
+   "quantity": null,
+   "unit": "EA",
+   "price": 320,
+   "priceInclVat": 368,
+   "category": "07 Plumbing"
+  },
+  {
    "code": "2000141",
-   "description": "uPVC sewer pipe",
+   "description": "uPVC 110 mm dia sewer / soil pipe",
    "quantity": null,
    "unit": "LENGTH",
    "price": 295.34,
    "priceInclVat": 339.64,
+   "category": "07 Plumbing"
+  },
+  {
+   "code": "2000306",
+   "description": "uPVC 50 mm dia waste pipe",
+   "quantity": null,
+   "unit": "LENGTH",
+   "price": 118,
+   "priceInclVat": 135.7,
+   "category": "07 Plumbing"
+  },
+  {
+   "code": "2000307",
+   "description": "Open vent pipe (OVP) – 110 mm uPVC, min 100 mm above roof",
+   "quantity": null,
+   "unit": "EA",
+   "price": 245,
+   "priceInclVat": 281.75,
    "category": "07 Plumbing"
   },
   {
@@ -3843,8 +4289,17 @@ export const DEFAULT_PRICE_LIST = {
    "category": "07 Plumbing"
   },
   {
+   "code": "2000308",
+   "description": "Floor gully trap",
+   "quantity": null,
+   "unit": "EA",
+   "price": 168,
+   "priceInclVat": 193.2,
+   "category": "07 Plumbing"
+  },
+  {
    "code": "2000144",
-   "description": "Inspection chambers / covers",
+   "description": "Inspection chambers / manhole covers",
    "quantity": null,
    "unit": "EA",
    "price": 692.29,
@@ -3856,7 +4311,7 @@ export const DEFAULT_PRICE_LIST = {
    "description": "Stormwater pipe / fittings",
    "quantity": null,
    "unit": "LENGTH",
-   "price": 223.0,
+   "price": 223,
    "priceInclVat": 256.45,
    "category": "07 Plumbing"
   },
@@ -3871,7 +4326,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000147",
-   "description": "Garden taps / hose bibs",
+   "description": "Garden taps / hose bibs (gully + tap)",
    "quantity": null,
    "unit": "EA",
    "price": 210.95,
@@ -3902,7 +4357,7 @@ export const DEFAULT_PRICE_LIST = {
    "quantity": null,
    "unit": "EA",
    "price": 5392.17,
-   "priceInclVat": 6201.0,
+   "priceInclVat": 6201,
    "category": "07 Plumbing"
   },
   {
@@ -4078,7 +4533,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000170",
-   "description": "Exterior fittings",
+   "description": "Garden lights / exterior fittings",
    "quantity": null,
    "unit": "EA",
    "price": 225.66,
@@ -4110,6 +4565,15 @@ export const DEFAULT_PRICE_LIST = {
    "unit": "EA",
    "price": 2588.61,
    "priceInclVat": 2976.9,
+   "category": "08 Electrical"
+  },
+  {
+   "code": "2000314",
+   "description": "Remote gate controls",
+   "quantity": null,
+   "unit": "EA",
+   "price": 640,
+   "priceInclVat": 736,
    "category": "08 Electrical"
   },
   {
@@ -4240,7 +4704,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000188",
-   "description": "Outdoor / non-slip tiles",
+   "description": "Slip-free / outdoor non-slip tiles",
    "quantity": null,
    "unit": "M2",
    "price": 422.91,
@@ -4297,8 +4761,8 @@ export const DEFAULT_PRICE_LIST = {
    "description": "Tile spacers",
    "quantity": null,
    "unit": "M2",
-   "price": 460.0,
-   "priceInclVat": 529.0,
+   "price": 460,
+   "priceInclVat": 529,
    "category": "09 Tiling"
   },
   {
@@ -4321,7 +4785,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000197",
-   "description": "Floor screed",
+   "description": "Floor screed (min 75 mm concrete screed / 30 mm roof screed at 1:50 fall)",
    "quantity": null,
    "unit": "BAG",
    "price": 202.33,
@@ -4374,6 +4838,15 @@ export const DEFAULT_PRICE_LIST = {
    "category": "09 Tiling"
   },
   {
+   "code": "2000313",
+   "description": "Carpet (floor finish – client's choice)",
+   "quantity": null,
+   "unit": "M2",
+   "price": 285,
+   "priceInclVat": 327.75,
+   "category": "09 Tiling"
+  },
+  {
    "code": "2000203",
    "description": "Interior wall paint",
    "quantity": null,
@@ -4393,7 +4866,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000205",
-   "description": "Enamel / trim paint",
+   "description": "Satin enamel / trim paint (door & window frames, gates)",
    "quantity": null,
    "unit": "5L",
    "price": 469.61,
@@ -4402,7 +4875,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000206",
-   "description": "Exterior wall paint",
+   "description": "Exterior wall paint – primary / secondary / accent colours",
    "quantity": null,
    "unit": "5L",
    "price": 432.41,
@@ -4501,7 +4974,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000217",
-   "description": "Wood primer / varnish / enamel",
+   "description": "Timber preservative / wood primer / varnish / enamel",
    "quantity": null,
    "unit": "5L",
    "price": 630.12,
@@ -4658,7 +5131,7 @@ export const DEFAULT_PRICE_LIST = {
    "quantity": null,
    "unit": "EA",
    "price": 442.61,
-   "priceInclVat": 509.0,
+   "priceInclVat": 509,
    "category": "11 Plastering"
   },
   {
@@ -4798,11 +5271,29 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000249",
-   "description": "Gloves / masks / eye protection",
+   "description": "Safety gloves (pair)",
    "quantity": null,
-   "unit": "EA",
+   "unit": "PAIR",
    "price": 79.76,
    "priceInclVat": 91.72,
+   "category": "12 General Fixings & Consumables"
+  },
+  {
+   "code": "2000317",
+   "description": "Dust masks (box of 20)",
+   "quantity": null,
+   "unit": "BOX",
+   "price": 148.5,
+   "priceInclVat": 170.77,
+   "category": "12 General Fixings & Consumables"
+  },
+  {
+   "code": "2000318",
+   "description": "Eye protection – safety glasses / goggles",
+   "quantity": null,
+   "unit": "EA",
+   "price": 62.4,
+   "priceInclVat": 71.76,
    "category": "12 General Fixings & Consumables"
   },
   {
@@ -4879,11 +5370,11 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000258",
-   "description": "Boundary wall materials",
+   "description": "Boundary / screen wall materials (up to 2.1 m high)",
    "quantity": null,
    "unit": "EA",
    "price": 586.09,
-   "priceInclVat": 674.0,
+   "priceInclVat": 674,
    "category": "13 External Works"
   },
   {
@@ -4915,7 +5406,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000262",
-   "description": "Pedestrian gates",
+   "description": "Garden gates – steel-framed horizontal slatted (50×50 SHS)",
    "quantity": null,
    "unit": "EA",
    "price": 2201.21,
@@ -4924,7 +5415,7 @@ export const DEFAULT_PRICE_LIST = {
   },
   {
    "code": "2000263",
-   "description": "Driveway gates",
+   "description": "Vehicle entrance / driveway gates",
    "quantity": null,
    "unit": "EA",
    "price": 10295.13,
@@ -4938,6 +5429,24 @@ export const DEFAULT_PRICE_LIST = {
    "unit": "EA",
    "price": 5430.66,
    "priceInclVat": 6245.26,
+   "category": "13 External Works"
+  },
+  {
+   "code": "2000296",
+   "description": "Gate spring auto-closer 250 mm",
+   "quantity": null,
+   "unit": "EA",
+   "price": 185,
+   "priceInclVat": 212.75,
+   "category": "13 External Works"
+  },
+  {
+   "code": "2000297",
+   "description": "Galvanised auto gate latch 127 mm",
+   "quantity": null,
+   "unit": "EA",
+   "price": 96,
+   "priceInclVat": 110.4,
    "category": "13 External Works"
   },
   {
@@ -5022,6 +5531,15 @@ export const DEFAULT_PRICE_LIST = {
    "category": "14 Labour & Services"
   },
   {
+   "code": "2000315",
+   "description": "Torch-on waterproofing installation",
+   "quantity": null,
+   "unit": "M2",
+   "price": 95,
+   "priceInclVat": 109.25,
+   "category": "14 Labour & Services"
+  },
+  {
    "code": "2000274",
    "description": "Ceiling installation",
    "quantity": null,
@@ -5037,6 +5555,15 @@ export const DEFAULT_PRICE_LIST = {
    "unit": "EA",
    "price": 861.4,
    "priceInclVat": 990.61,
+   "category": "14 Labour & Services"
+  },
+  {
+   "code": "2000316",
+   "description": "Gate & garage-door installation",
+   "quantity": null,
+   "unit": "EA",
+   "price": 1650,
+   "priceInclVat": 1897.5,
    "category": "14 Labour & Services"
   },
   {
@@ -5148,6 +5675,6 @@ export const DEFAULT_PRICE_LIST = {
    "category": "14 Labour & Services"
   }
  ],
- "totalItems": 298,
+ "totalItems": 329,
  "isBuiltIn": true
 }

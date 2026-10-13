@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import jsPDF from 'jspdf'
 import Layout from '../components/Layout'
 import {
   MOCK_EXTRACTED_MATERIALS,
@@ -16,6 +15,7 @@ import { db } from '../data/db'
 import { SUPPLIERS } from '../data/suppliers'
 import { DEFAULT_PRICE_LIST } from '../data/defaultPriceList'
 import { DEMO_PLAN, buildTakeoff } from '../data/demoPlan'
+import { createQuotePdf, quotePdfFileName } from '../data/quotePdf'
 
 const STEPS = [
   'Select Supplier',
@@ -25,7 +25,8 @@ const STEPS = [
   'Consumables (Optional)',
   'Pricing Engine',
   'Add Labour Rate',
-  'Generate PDF Quote'
+  'Review Quote',
+  'Deposit & PDF Quote'
 ]
 
 // Categories a plan can never tell you about — the contractor has to choose
@@ -184,8 +185,17 @@ export default function NewQuote() {
     Object.fromEntries(LABOUR_TRADES.map((t) => [t.id, { rate: String(DEMO_LABOUR_RATES[t.id] ?? ''), unit: t.unit }]))
   )
   const [fixedLabour, setFixedLabour] = useState(
-    Object.fromEntries(LABOUR_FIXED.map((f) => [f.id, String(f.amount)]))
+    Object.fromEntries(LABOUR_FIXED.filter((f) => f.id !== 'supervision').map((f) => [f.id, String(f.amount)]))
   )
+  // Site supervision is days × rate per day (example values — contractor enters their own)
+  const [supervisionDays, setSupervisionDays] = useState('10')
+  const [supervisionRate, setSupervisionRate] = useState('500')
+
+  // Deposit (optional): off by default; a % of the quote total or a rand amount
+  const [depositEnabled, setDepositEnabled] = useState(false)
+  const [depositMode, setDepositMode] = useState('percent') // 'percent' | 'amount'
+  const [depositPercent, setDepositPercent] = useState('50')
+  const [depositAmountInput, setDepositAmountInput] = useState('')
 
   // Labour: the contractor's own extra line items, on top of the standard trades
   const [customLabour, setCustomLabour] = useState([]) // { id, label, unit, rate, qty }
@@ -237,15 +247,17 @@ export default function NewQuote() {
     const rate = parseFloat(labourRates[t.id]?.rate) || 0
     const unit = labourRates[t.id]?.unit || t.unit
     const basis = labourBasis[t.id] ?? t.basis
-    return { ...t, basis, unit, rate, cost: rate * basis }
+    return { ...t, basis, unit, rate, cost: rate * (parseFloat(basis) || 0) }
   })
-  const fixedLines = LABOUR_FIXED.map((f) => ({ ...f, amount: parseFloat(fixedLabour[f.id]) || 0 }))
+  const fixedLines = LABOUR_FIXED.filter((f) => f.id !== 'supervision').map((f) => ({ ...f, amount: parseFloat(fixedLabour[f.id]) || 0 }))
+  const supervisionCost = (parseFloat(supervisionDays) || 0) * (parseFloat(supervisionRate) || 0)
   const customLabourLines = customLabour.map((r) => ({
     ...r,
     cost: (parseFloat(r.rate) || 0) * (parseFloat(r.qty) || 0)
   }))
   const labourCost =
     labourLines.reduce((sum, l) => sum + l.cost, 0) +
+    supervisionCost +
     fixedLines.reduce((sum, f) => sum + f.amount, 0) +
     customLabourLines.reduce((sum, l) => sum + l.cost, 0)
 
@@ -256,175 +268,62 @@ export default function NewQuote() {
   const vatAmount = markedUp * ((parseFloat(vatPercent) || 0) / 100)
   const grandTotal = markedUp + vatAmount
 
+  // Deposit: either a % of the grand total or the contractor's own rand value, capped at the total
+  const depositRaw = !depositEnabled
+    ? 0
+    : depositMode === 'percent'
+      ? grandTotal * ((parseFloat(depositPercent) || 0) / 100)
+      : parseFloat(depositAmountInput) || 0
+  const depositValue = Math.min(Math.max(depositRaw, 0), grandTotal)
+  const depositInfo =
+    depositEnabled && depositValue > 0
+      ? {
+          amount: depositValue,
+          percent: depositMode === 'percent' ? parseFloat(depositPercent) || 0 : null,
+          balance: grandTotal - depositValue
+        }
+      : null
+
   const reference = `GNA-DEMO-${String(state.quotes.length + 1).padStart(3, '0')}`
 
   async function generatePdf() {
-    const doc = new jsPDF()
-
-    function finishAndSave(companyLogoImg) {
-      // GNA logo: kept small and to the top-left — the contractor's own
-      // branding is the bigger, more prominent logo on this quote.
-      const gnaW = 42
-      const gnaH = 22
-      doc.addImage(LOGO_BASE64, 'JPEG', 14, 8, gnaW, gnaH)
-      doc.setFontSize(7)
-      doc.setTextColor(90, 90, 90)
-      doc.text(COMPANY_LEGAL_LINE, 14, 8 + gnaH + 4)
-
-      let companyLogoBottom = 8
-      if (companyLogoImg) {
-        const maxW = 58
-        const maxH = 32
-        const ratio = Math.min(maxW / companyLogoImg.width, maxH / companyLogoImg.height)
-        const w = companyLogoImg.width * ratio
-        const h = companyLogoImg.height * ratio
-        doc.addImage(companyLogoImg.dataUrl, 'PNG', 196 - w, 8, w, h)
-        companyLogoBottom = 8 + h
-      }
-
-      const headerBottom = Math.max(8 + gnaH, companyLogoBottom) + 8
-      doc.setDrawColor(228, 32, 44)
-      doc.setLineWidth(0.6)
-      doc.line(14, headerBottom, 196, headerBottom)
-
-      const infoTop = headerBottom + 9
-      doc.setFontSize(18)
-      doc.setTextColor(228, 32, 44)
-      doc.text('QUOTE', 196, infoTop, { align: 'right' })
-
-      doc.setFontSize(10)
-      doc.setTextColor(120, 120, 120)
-      doc.text(`Reference: ${reference}`, 196, infoTop + 7, { align: 'right' })
-      doc.text(`Date: ${new Date().toLocaleDateString()}`, 196, infoTop + 13, { align: 'right' })
-
-      doc.setFontSize(11)
-      doc.setTextColor(40, 40, 40)
-      doc.text(`Project: ${projectName || 'Untitled project'}`, 14, infoTop)
-      doc.text(`Client: ${clientName || '-'}`, 14, infoTop + 7)
-      doc.text(`Site: ${siteAddress || '-'}`, 14, infoTop + 14)
-
-      // "Quoted by" block — the contractor's own company details, required
-      // on the quote alongside their logo.
-      let quotedByY = infoTop + 22
-      doc.setFontSize(8.5)
-      doc.setTextColor(140, 140, 140)
-      doc.text('Quoted by', 196, quotedByY, { align: 'right' })
-      quotedByY += 5
-      doc.setFontSize(10.5)
-      doc.setTextColor(40, 40, 40)
-      doc.text(user?.company || 'Independent Contractor', 196, quotedByY, { align: 'right' })
-      doc.setFontSize(8.5)
-      doc.setTextColor(100, 100, 100)
-      if (user?.companyAddress) {
-        const addressLines = doc.splitTextToSize(user.companyAddress, 95)
-        addressLines.forEach((line) => {
-          quotedByY += 4.5
-          doc.text(line, 196, quotedByY, { align: 'right' })
-        })
-      }
-      if (user?.email) {
-        quotedByY += 4.5
-        doc.text(user.email, 196, quotedByY, { align: 'right' })
-      }
-
-      let y = Math.max(infoTop + 14, quotedByY) + 14
-      doc.setFontSize(12)
-      doc.setTextColor(40, 40, 40)
-      doc.text('Description', 14, y)
-      doc.text('Amount (ZAR)', 196, y, { align: 'right' })
-      y += 4
-      doc.line(14, y, 196, y)
-      y += 8
-      doc.setFontSize(10)
-
-      const summaryRows = [
-        ['Material Cost', materialCost],
+    const data = {
+      reference,
+      dateLabel: new Date().toLocaleDateString(),
+      projectName,
+      clientName,
+      siteAddress,
+      // Mark-up is folded into the material figure — the client never sees it as a line.
+      rows: [
+        ['Material Cost', materialCost + markupAmount],
         ['Labour Cost', labourCost],
         ['Transport / Location Allowance', transport],
-        [`Mark-up (${markup}%)`, markupAmount],
         [`VAT (${vatPercent}%)`, vatAmount]
-      ]
-      summaryRows.forEach(([label, amount]) => {
-        doc.text(label, 14, y)
-        doc.text(`R ${amount.toFixed(2)}`, 196, y, { align: 'right' })
-        y += 8
-      })
-
-      y += 2
-      doc.setLineWidth(0.8)
-      doc.line(14, y, 196, y)
-      y += 10
-      doc.setFontSize(14)
-      doc.setTextColor(228, 32, 44)
-      doc.text('Grand Total:', 14, y)
-      doc.text(`R ${grandTotal.toFixed(2)}`, 196, y, { align: 'right' })
-
-      y += 16
-      doc.setFontSize(11)
-      doc.setTextColor(40, 40, 40)
-      doc.text('Assumptions', 14, y)
-      y += 7
-      doc.setFontSize(9)
-      doc.setTextColor(80, 80, 80)
-      ;[
-        'Quote based on uploaded plan and confirmed extracted quantities.',
-        'Pricing is calculated from the supplied Excel pricing data.',
-        'Final measurements must be confirmed before work starts.'
-      ].forEach((line) => {
-        doc.text(`•  ${line}`, 14, y)
-        y += 6
-      })
-
-      y += 4
-      doc.setFontSize(11)
-      doc.setTextColor(40, 40, 40)
-      doc.text('Exclusions', 14, y)
-      y += 7
-      doc.setFontSize(9)
-      doc.setTextColor(80, 80, 80)
-      ;[
-        'Items not visible or not shown on the supplied plan are excluded.',
-        'Municipal approvals, engineering changes and abnormal site conditions excluded.',
-        'Professional fees (architect, engineer, council) not included unless stated.'
-      ].forEach((line) => {
-        doc.text(`•  ${line}`, 14, y)
-        y += 6
-      })
-
-      doc.save(`${reference}-${(projectName || 'gna-quote').replace(/\s+/g, '-')}.pdf`)
-
-      const newQuote = {
-        id: Date.now(),
-        reference,
-        projectName: projectName || 'Untitled project',
-        customerName: clientName,
-        siteAddress,
-        total: grandTotal,
-        status: 'completed',
-        createdAt: new Date().toISOString(),
-        ownerEmail: user?.email || null,
-        ownerCompany: user?.company || null
-      }
-      setState((s) => ({ ...s, quotes: [...s.quotes, newQuote] }))
-      db.set('quotes', String(newQuote.id), newQuote)
-      navigate('/quotes')
+      ],
+      grandTotal,
+      deposit: depositInfo,
+      quotedBy: { company: user?.company, address: user?.companyAddress, email: user?.email }
     }
+    const doc = await createQuotePdf(data, user?.logoDataUrl)
+    doc.save(quotePdfFileName(data))
 
-    if (user?.logoDataUrl) {
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        canvas.width = img.naturalWidth
-        canvas.height = img.naturalHeight
-        const ctx = canvas.getContext('2d')
-        ctx.drawImage(img, 0, 0)
-        finishAndSave({ dataUrl: canvas.toDataURL('image/png'), width: img.naturalWidth, height: img.naturalHeight })
-      }
-      img.onerror = () => finishAndSave(null)
-      img.src = user.logoDataUrl
-    } else {
-      finishAndSave(null)
+    const newQuote = {
+      id: Date.now(),
+      reference,
+      projectName: projectName || 'Untitled project',
+      customerName: clientName,
+      siteAddress,
+      total: grandTotal,
+      deposit: depositInfo ? depositInfo.amount : null,
+      status: 'completed',
+      createdAt: new Date().toISOString(),
+      ownerEmail: user?.email || null,
+      ownerCompany: user?.company || null,
+      pdfData: data
     }
+    setState((s) => ({ ...s, quotes: [...s.quotes, newQuote] }))
+    db.set('quotes', String(newQuote.id), newQuote)
+    navigate('/quotes')
   }
 
   if (!allowed) {
@@ -1031,9 +930,40 @@ export default function NewQuote() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card">
             <h2 className="text-lg font-semibold mb-1">Contractor labour rates</h2>
-            <p className="text-sm text-gray-500 mb-4">Labour is contractor-controlled and added after material pricing.</p>
+            <p className="text-sm text-gray-500 mb-3">Labour is contractor-controlled and added after material pricing.</p>
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+              <strong>Please enter your own labour costs.</strong> The rates, days and amounts pre-filled below are
+              examples only so you can see how the quote is calculated — replace them with your own figures before continuing.
+            </p>
             <div className="space-y-3">
-              {LABOUR_TRADES.map((t) => (
+              {LABOUR_TRADES.map((t) => t.id === 'general' ? (
+                <div key={t.id} className="grid grid-cols-12 gap-2 items-center">
+                  <span className="col-span-5 text-sm">
+                    {t.label}
+                    <span className="block text-xs text-gray-400">Total days × rate per day</span>
+                  </span>
+                  <label className="col-span-3 text-[11px] text-gray-400">
+                    Days
+                    <input
+                      type="number"
+                      min="0"
+                      className="w-full border rounded-lg px-2 py-1.5 text-sm text-gray-900"
+                      value={labourBasis.general}
+                      onChange={(e) => setLabourBasis((b) => ({ ...b, general: e.target.value }))}
+                    />
+                  </label>
+                  <label className="col-span-4 text-[11px] text-gray-400">
+                    Rate per day (R)
+                    <input
+                      type="number"
+                      min="0"
+                      className="w-full border rounded-lg px-2 py-1.5 text-sm text-gray-900"
+                      value={labourRates.general.rate}
+                      onChange={(e) => updateLabourRate('general', 'rate', e.target.value)}
+                    />
+                  </label>
+                </div>
+              ) : (
                 <div key={t.id} className="grid grid-cols-12 gap-2 items-center">
                   <span className="col-span-5 text-sm">
                     {t.label}
@@ -1057,7 +987,33 @@ export default function NewQuote() {
                   />
                 </div>
               ))}
-              {LABOUR_FIXED.map((f) => (
+              <div className="grid grid-cols-12 gap-2 items-center">
+                <span className="col-span-5 text-sm">
+                  Site Supervision
+                  <span className="block text-xs text-gray-400">Total days × rate per day</span>
+                </span>
+                <label className="col-span-3 text-[11px] text-gray-400">
+                  Days
+                  <input
+                    type="number"
+                    min="0"
+                    className="w-full border rounded-lg px-2 py-1.5 text-sm text-gray-900"
+                    value={supervisionDays}
+                    onChange={(e) => setSupervisionDays(e.target.value)}
+                  />
+                </label>
+                <label className="col-span-4 text-[11px] text-gray-400">
+                  Rate per day (R)
+                  <input
+                    type="number"
+                    min="0"
+                    className="w-full border rounded-lg px-2 py-1.5 text-sm text-gray-900"
+                    value={supervisionRate}
+                    onChange={(e) => setSupervisionRate(e.target.value)}
+                  />
+                </label>
+              </div>
+              {LABOUR_FIXED.filter((f) => f.id !== 'supervision').map((f) => (
                 <div key={f.id} className="grid grid-cols-12 gap-2 items-center">
                   <span className="col-span-5 text-sm">{f.label}</span>
                   <span className="col-span-3 text-xs text-gray-400">fixed</span>
@@ -1130,7 +1086,7 @@ export default function NewQuote() {
             </div>
             <div className="flex justify-between mt-6">
               <button className="btn-secondary" onClick={() => setStep(5)}>Back</button>
-              <button className="btn-primary" onClick={() => setStep(7)}>Next: Generate PDF Quote</button>
+              <button className="btn-primary" onClick={() => setStep(7)}>Next: Review Quote</button>
             </div>
           </div>
 
@@ -1139,7 +1095,7 @@ export default function NewQuote() {
             <div className="text-sm space-y-2">
               {labourLines.map((l) => (
                 <div key={l.id} className="flex justify-between">
-                  <span className="text-gray-500">{l.label}</span>
+                  <span className="text-gray-500">{l.id === 'general' ? `${l.label} (${parseFloat(l.basis) || 0} days)` : l.label}</span>
                   <span>R {l.cost.toFixed(2)}</span>
                 </div>
               ))}
@@ -1149,6 +1105,10 @@ export default function NewQuote() {
                   <span>R {l.cost.toFixed(2)}</span>
                 </div>
               ))}
+              <div className="flex justify-between">
+                <span className="text-gray-500">Site Supervision ({parseFloat(supervisionDays) || 0} days)</span>
+                <span>R {supervisionCost.toFixed(2)}</span>
+              </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Additional Costs</span>
                 <span>R {fixedLines.reduce((sum, f) => sum + f.amount, 0).toFixed(2)}</span>
@@ -1168,15 +1128,17 @@ export default function NewQuote() {
           <div className="card">
             <h2 className="text-lg font-semibold mb-4">Quote summary</h2>
             <div className="text-sm space-y-2 mb-4">
-              <div className="flex justify-between"><span className="text-gray-500">Material Cost</span><span>R {materialCost.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Material Cost (incl. mark-up)</span><span>R {(materialCost + markupAmount).toFixed(2)}</span></div>
               <div className="flex justify-between"><span className="text-gray-500">Labour Cost</span><span>R {labourCost.toFixed(2)}</span></div>
               <div className="flex justify-between"><span className="text-gray-500">Transport / Location Allowance</span><span>R {transport.toFixed(2)}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Mark-up ({markup}%)</span><span>R {markupAmount.toFixed(2)}</span></div>
               <div className="flex justify-between"><span className="text-gray-500">VAT ({vatPercent}%)</span><span>R {vatAmount.toFixed(2)}</span></div>
               <div className="flex justify-between font-semibold text-base border-t pt-2 text-brand-green">
                 <span>Grand Total</span><span>R {grandTotal.toFixed(2)}</span>
               </div>
             </div>
+            <p className="text-xs text-gray-500 mb-3">
+              Your {markup}% mark-up (R {markupAmount.toFixed(2)}) is built into the material cost above — it is not shown as a separate line on the client's quote.
+            </p>
             <p className="text-xs text-brand-blue bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-4">
               Generating this quote would deduct 1 credit from your account.
             </p>
@@ -1217,10 +1179,9 @@ export default function NewQuote() {
                   <tr className="text-left text-gray-500 border-b"><th className="py-2 font-medium">Description</th><th className="py-2 font-medium text-right">Amount (ZAR)</th></tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-gray-100"><td className="py-2">Material Cost</td><td className="py-2 text-right">R {materialCost.toFixed(2)}</td></tr>
+                  <tr className="border-b border-gray-100"><td className="py-2">Material Cost</td><td className="py-2 text-right">R {(materialCost + markupAmount).toFixed(2)}</td></tr>
                   <tr className="border-b border-gray-100"><td className="py-2">Labour Cost</td><td className="py-2 text-right">R {labourCost.toFixed(2)}</td></tr>
                   <tr className="border-b border-gray-100"><td className="py-2">Transport / Location Allowance</td><td className="py-2 text-right">R {transport.toFixed(2)}</td></tr>
-                  <tr className="border-b border-gray-100"><td className="py-2">Mark-up ({markup}%)</td><td className="py-2 text-right">R {markupAmount.toFixed(2)}</td></tr>
                   <tr className="border-b border-gray-100"><td className="py-2">VAT ({vatPercent}%)</td><td className="py-2 text-right">R {vatAmount.toFixed(2)}</td></tr>
                 </tbody>
               </table>
@@ -1238,9 +1199,91 @@ export default function NewQuote() {
                 <li>Municipal approvals, engineering changes and abnormal site conditions excluded.</li>
                 <li>Professional fees (architect, engineer, council) not included unless stated.</li>
               </ul>
-              <button className="btn-primary w-full" onClick={generatePdf}>Download PDF Quote</button>
+              <button className="btn-primary w-full" onClick={() => setStep(8)}>Next: Deposit (Optional)</button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Step 8: Deposit & PDF */}
+      {step === 8 && (
+        <div className="card max-w-xl">
+          <h2 className="text-lg font-semibold mb-1">Deposit (optional)</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Ask the client for a deposit before work starts. Skip this if you don't want one — the quote will
+            then show the grand total only.
+          </p>
+          <label className="flex items-center gap-2 text-sm mb-4">
+            <input type="checkbox" checked={depositEnabled} onChange={(e) => setDepositEnabled(e.target.checked)} />
+            Include a deposit on this quote
+          </label>
+
+          {depositEnabled && (
+            <div className="border rounded-lg p-4 mb-4 space-y-3">
+              <div className="flex gap-2">
+                {[['percent', '% of total quote'], ['amount', 'Own amount (R)']].map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setDepositMode(id)}
+                    className={`text-sm px-3 py-1.5 rounded-full border ${
+                      depositMode === id ? 'bg-brand-blue text-white border-brand-blue' : 'border-gray-300 text-gray-600'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {depositMode === 'percent' ? (
+                <label className="block text-xs text-gray-500">
+                  Deposit percentage
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    className="w-full border rounded-lg px-3 py-2 text-sm text-gray-900 mt-1"
+                    value={depositPercent}
+                    onChange={(e) => setDepositPercent(e.target.value)}
+                  />
+                </label>
+              ) : (
+                <label className="block text-xs text-gray-500">
+                  Deposit amount (R)
+                  <input
+                    type="number"
+                    min="0"
+                    className="w-full border rounded-lg px-3 py-2 text-sm text-gray-900 mt-1"
+                    placeholder="e.g. 50000"
+                    value={depositAmountInput}
+                    onChange={(e) => setDepositAmountInput(e.target.value)}
+                  />
+                </label>
+              )}
+              {depositRaw > grandTotal && (
+                <p className="text-xs text-amber-700">The deposit can't be more than the quote total — it has been capped at R {grandTotal.toFixed(2)}.</p>
+              )}
+            </div>
+          )}
+
+          <div className="text-sm space-y-2 mb-5">
+            <div className="flex justify-between"><span className="text-gray-500">Quote total (incl. VAT)</span><span>R {grandTotal.toFixed(2)}</span></div>
+            {depositInfo && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Deposit{depositInfo.percent != null ? ` (${depositInfo.percent}%)` : ''}</span>
+                  <span>R {depositInfo.amount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-semibold border-t pt-2">
+                  <span>Balance due after deposit</span><span>R {depositInfo.balance.toFixed(2)}</span>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex justify-between">
+            <button className="btn-secondary" onClick={() => setStep(7)}>Back</button>
+            <button className="btn-primary" onClick={generatePdf}>Download PDF Quote</button>
+          </div>
         </div>
       )}
     </Layout>

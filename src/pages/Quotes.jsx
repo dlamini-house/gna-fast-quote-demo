@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { useAppState, currentUser } from '../data/store'
+import { downloadSavedQuote } from '../data/quotePdf'
 
 export default function Quotes() {
   const [state] = useAppState()
@@ -27,6 +28,7 @@ export default function Quotes() {
                 <th className="py-2 font-medium">Date</th>
                 <th className="py-2 font-medium">Total</th>
                 <th className="py-2 font-medium">Status</th>
+                <th className="py-2 font-medium text-right">PDF</th>
               </tr>
             </thead>
             <tbody>
@@ -41,6 +43,11 @@ export default function Quotes() {
                     <td className="py-3">{new Date(q.createdAt).toLocaleDateString()}</td>
                     <td className="py-3">R {q.total.toFixed(2)}</td>
                     <td className="py-3 capitalize">{q.status}</td>
+                    <td className="py-3 text-right">
+                      <button className="btn-secondary text-xs px-3 py-1.5" onClick={() => downloadSavedQuote(q, user)}>
+                        Download
+                      </button>
+                    </td>
                   </tr>
                 ))}
             </tbody>
