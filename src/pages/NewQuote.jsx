@@ -1041,47 +1041,36 @@ export default function NewQuote() {
                   />
                 </div>
               ))}
+              {(labourCatalog?.items || []).map((it) => (
+                <div key={it.code} className="grid grid-cols-12 gap-2 items-center">
+                  <span className="col-span-5 text-sm leading-tight">
+                    {it.description}
+                    <span className="block text-xs text-gray-400">Qty × rate per {it.unit}</span>
+                  </span>
+                  <label className="col-span-3 text-[11px] text-gray-400">
+                    Qty
+                    <input
+                      type="number"
+                      min="0"
+                      className="w-full border rounded-lg px-2 py-1.5 text-sm text-gray-900"
+                      placeholder="0"
+                      value={labourItemQtys[it.code] || ''}
+                      onChange={(e) => setLabourItemQtys((q) => ({ ...q, [it.code]: e.target.value }))}
+                    />
+                  </label>
+                  <label className="col-span-4 text-[11px] text-gray-400">
+                    Rate (R)
+                    <input
+                      type="number"
+                      min="0"
+                      className="w-full border rounded-lg px-2 py-1.5 text-sm text-gray-900"
+                      value={labourItemRates[it.code] !== undefined ? labourItemRates[it.code] : it.price}
+                      onChange={(e) => setLabourItemRates((r) => ({ ...r, [it.code]: e.target.value }))}
+                    />
+                  </label>
+                </div>
+              ))}
             </div>
-
-            {labourCatalog && (
-              <div className="mt-5 pt-4 border-t">
-                <h3 className="text-sm font-semibold mb-1">Labour &amp; services from the {supplierInfo?.name || 'supplier'} price list</h3>
-                <p className="text-xs text-gray-400 mb-3">
-                  Enter a quantity for every item you want on this quote. The rate comes from the price list
-                  (example figures) — change it to your own rate if needed.
-                </p>
-                <div className="grid grid-cols-12 gap-2 text-[11px] text-gray-400 px-0.5 mb-1">
-                  <span className="col-span-6">Item</span>
-                  <span className="col-span-3">Rate (R) / unit</span>
-                  <span className="col-span-3">Qty</span>
-                </div>
-                <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-                  {labourCatalog.items.map((it) => (
-                    <div key={it.code} className="grid grid-cols-12 gap-2 items-center">
-                      <span className="col-span-6 text-sm leading-tight">{it.description}</span>
-                      <div className="col-span-3">
-                        <input
-                          type="number"
-                          min="0"
-                          className="w-full border rounded-lg px-2 py-1.5 text-sm"
-                          value={labourItemRates[it.code] !== undefined ? labourItemRates[it.code] : it.price}
-                          onChange={(e) => setLabourItemRates((r) => ({ ...r, [it.code]: e.target.value }))}
-                        />
-                        <span className="text-[10px] text-gray-400">per {it.unit}</span>
-                      </div>
-                      <input
-                        type="number"
-                        min="0"
-                        className="col-span-3 border rounded-lg px-2 py-1.5 text-sm"
-                        placeholder="0"
-                        value={labourItemQtys[it.code] || ''}
-                        onChange={(e) => setLabourItemQtys((q) => ({ ...q, [it.code]: e.target.value }))}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             <div className="mt-5 pt-4 border-t">
               <div className="flex items-center justify-between mb-2">
