@@ -4,7 +4,7 @@ import AdminLayout from '../../components/AdminLayout'
 import { useAppState, currentAdmin } from '../../data/store'
 import { db } from '../../data/db'
 import { SUPPLIERS } from '../../data/suppliers'
-import { DEFAULT_PRICE_LIST } from '../../data/defaultPriceList'
+import { CATEGORY_NAMES, getDefaultPriceList } from '../../data/supplierPriceLists'
 
 // Every supplier gets its own price-list record, keyed by its slug in
 // data/suppliers.js — the same slug New Quote uses to look the list up.
@@ -119,9 +119,62 @@ function parseLegacyTemplate(workbook) {
   return { categories, flatItems, totalItems }
 }
 
+// Current GnA Fast Quote supplier workbook: one tab per category ("01 Building
+// & Masonry" … "14 Labour & Services"), header row starting "Line No.", price in
+// "Unit Price excl. VAT (R)". Item codes are "<tab number>-<line number>" (e.g.
+// 01-02), the same codes the quote's plan take-off uses, so an uploaded list
+// replaces the built-in rates line for line. Blank-price rows are skipped.
+function parseSupplierWorkbook(workbook) {
+  const categories = []
+  const flatItems = []
+  workbook.SheetNames.forEach((sheetName) => {
+    const num = sheetName.trim().slice(0, 2)
+    if (!/^\d\d$/.test(num)) return
+    const sheet = workbook.Sheets[sheetName]
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, blankrows: false })
+    const headerIndex = rows.findIndex((r) => String(r[0] || '').trim().toLowerCase() === 'line no.')
+    if (headerIndex === -1) return
+    const header = rows[headerIndex].map((h) => String(h || '').trim().toLowerCase())
+    const col = (needle) => header.findIndex((h) => h.includes(needle))
+    const descCol = col('material')
+    const specCol = col('specification')
+    const unitCol = header.indexOf('unit')
+    const brandCol = col('brand')
+    const exCol = col('excl. vat')
+    const inclCol = col('incl. vat')
+    const vatCol = header.indexOf('vat %')
+    const category = CATEGORY_NAMES.find((n) => n.startsWith(num)) || sheetName.trim()
+    const items = []
+    for (let i = headerIndex + 1; i < rows.length; i++) {
+      const row = rows[i]
+      const line = Number(row[0])
+      if (!Number.isFinite(line) || row[0] === null) continue
+      let price = exCol >= 0 ? parseFloat(row[exCol]) : NaN
+      const vat = vatCol >= 0 && Number.isFinite(Number(row[vatCol])) ? Number(row[vatCol]) : 0.15
+      if (!Number.isFinite(price) && inclCol >= 0 && Number.isFinite(parseFloat(row[inclCol]))) price = parseFloat(row[inclCol]) / (1 + vat)
+      if (!Number.isFinite(price)) continue
+      items.push({
+        code: `${num}-${String(line).padStart(2, '0')}`,
+        description: String(row[descCol] || '').trim(),
+        quantity: null,
+        unit: unitCol >= 0 ? String(row[unitCol] || '').trim() : '',
+        price,
+        priceInclVat: Math.round(price * (1 + vat) * 100) / 100,
+        spec: specCol >= 0 ? String(row[specCol] || '').trim() : '',
+        brand: brandCol >= 0 ? String(row[brandCol] || '').trim() : ''
+      })
+    }
+    if (items.length) {
+      categories.push({ category, items })
+      items.forEach((it) => flatItems.push({ ...it, category }))
+    }
+  })
+  return flatItems.length ? { categories, flatItems, totalItems: flatItems.length } : null
+}
+
 function parseWorkbook(arrayBuffer) {
   const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-  return parseStandardTemplate(workbook) || parseLegacyTemplate(workbook)
+  return parseSupplierWorkbook(workbook) || parseStandardTemplate(workbook) || parseLegacyTemplate(workbook)
 }
 
 export default function PriceLists() {
@@ -255,7 +308,7 @@ export default function PriceLists() {
               </div>
             ) : (
               <p className="text-sm text-gray-500">
-                No price list uploaded yet for {supplier.name} — quotes for this supplier use the built-in demo price list ({DEFAULT_PRICE_LIST.totalItems} items across {DEFAULT_PRICE_LIST.categories.length} categories) until you upload one.
+                No price list uploaded yet for {supplier.name} — quotes for this supplier use the built-in demo price list ({getDefaultPriceList(supplier.slug).totalItems} items across {getDefaultPriceList(supplier.slug).categories.length} categories) until you upload one.
               </p>
             )}
           </div>
@@ -265,9 +318,9 @@ export default function PriceLists() {
               {current ? `Replace the ${supplier.name} price list` : `Upload the ${supplier.name} price list`}
             </h2>
             <p className="text-xs text-gray-400 mb-3">
-              .xlsx file in GNA's standard "Supplier Price Request" template — the same workbook
-              sent to every supplier, with items grouped by Category and priced in the
-              "Supplier SKU / Code" / "PRICE EX VAT" columns.
+              .xlsx file in GnA's supplier price-list format — one tab per category
+              (01 Building & Masonry … 14 Labour & Services), priced in the "Unit Price excl. VAT (R)"
+              column. Lines with a blank price are skipped; the older single-sheet template still works too.
             </p>
             <label className="block border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-brand-blue transition-colors">
               <input type="file" accept=".xlsx" className="hidden" onChange={handleFile} />

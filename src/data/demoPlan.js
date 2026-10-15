@@ -8,7 +8,7 @@
 //   - "rule"      = quantity derived from the above using a stated building rule
 // Every derived line carries a `basis` sentence so the estimator can see (and
 // override) how it was calculated.
-import { DEFAULT_PRICE_LIST } from './defaultPriceList'
+import { getDefaultPriceList } from './supplierPriceLists'
 
 export const DEMO_PLAN = {
   title: 'Proposed New Dwelling',
@@ -117,7 +117,7 @@ export const DEMO_PLAN = {
 
 // ---- helpers --------------------------------------------------------------
 const PRICE_BY_CODE = {}
-for (const c of DEFAULT_PRICE_LIST.categories) {
+for (const c of getDefaultPriceList('buco').categories) {
   for (const it of c.items) PRICE_BY_CODE[String(it.code)] = { ...it, category: c.category }
 }
 const sum = (arr, f) => arr.reduce((s, x) => s + f(x), 0)
@@ -160,7 +160,7 @@ function line(group, code, desc, qty, basis, source) {
     source: group,
     code: String(code),
     description: desc || p?.description || String(code),
-    unit: p?.unit || 'EA',
+    unit: p?.unit || 'each',
     qty: Math.max(0, Math.ceil(qty)),
     rate: p?.price ?? 0,
     basis,
@@ -169,12 +169,17 @@ function line(group, code, desc, qty, basis, source) {
   }
 }
 
-// Plan elements the architectural drawing calls for but the standard price
-// list has no row for — shown to the estimator so they can price them manually.
+// Plan elements the drawing calls for that the price list cannot price exactly.
 export const UNMATCHED_PLAN_ITEMS = [
+  { item: 'Window CW1 (fixed panel)', note: 'The list has no fixed-window row – priced as an aluminium top-hung window; confirm with the supplier' },
+  { item: 'Folding doors FD1', note: 'Priced as aluminium sliding doors (closest row); folding gear is a separate line' },
   { item: 'Electrical layout', note: 'Not on the architectural plan – see the separate electrical drawing' },
   { item: 'Floor / wall tile finishes', note: 'Plan says "carpet or slip-free tiles as chosen by client" – add the client\'s choice under Items Not on Plan' },
-  { item: 'Chimney / braai', note: 'Plan gives no size – quantity left for the estimator (flue components are in the price list)' }
+  { item: 'Chimney / braai', note: 'Plan gives no size – flue components are in the price list, quantity left to the estimator' }
+]
+
+const LINTEL_SIZES = [
+  [900, '01-09'], [1200, '01-10'], [1500, '01-11'], [1800, '01-12'], [2100, '01-13'], [2400, '01-14']
 ]
 
 export function buildTakeoff(plan = DEMO_PLAN) {
@@ -185,154 +190,167 @@ export function buildTakeoff(plan = DEMO_PLAN) {
   const slabGround = M.groundFloor
   const slabFirst = M.firstFloor
   const footingLen = plan.walls.external.ground + plan.walls.internal.ground
+  const d = (tag) => plan.doors.find((x) => x.tag === tag)
+  const fx = (n) => plan.fixtures.find((f) => f.name === n)?.qty || 0
 
   // ---- Foundations & concrete
   const concreteM3 = slabGround * 0.1 + footingLen * 0.6 * 0.2 + slabFirst * 0.17
-  L.push(line('Concrete & Foundations', '9/0190894', 'Ready-mix concrete 25 MPa (cube)', concreteM3 * 1.05,
+  L.push(line('Concrete & Foundations', '02-03', 'Ready-mix concrete 25 MPa (m³)', concreteM3 * 1.05,
     `Ground slab ${slabGround.toFixed(2)} m² × 100 mm + strip footings ${footingLen} m × 600×200 + first-floor slab ${slabFirst.toFixed(2)} m² × 170 mm, +5% waste`, 'rule'))
-  L.push(line('Concrete & Foundations', '1074225', 'Reinforcing Y12 bar 6.0 m', (slabFirst * 0.17 * 70 + footingLen * 0.12 * 40) / 5.33,
+  L.push(line('Concrete & Foundations', '03-03', 'Rebar Y12, 6 m lengths', (slabFirst * 0.17 * 70 + footingLen * 0.12 * 40) / 5.33,
     'First-floor slab (≈70 kg/m³) and footings (≈40 kg/m³) ÷ 5.33 kg per Y12 6 m bar', 'rule'))
-  L.push(line('Concrete & Foundations', '1022540', 'Welded mesh Ref 193 sheet 6.0×2.4 m', (slabGround + slabFirst) * 1.1 / 12.9,
+  L.push(line('Concrete & Foundations', '03-07', 'Reinforcing mesh 193 sheets', (slabGround + slabFirst) * 1.1 / 12.9,
     `Ground + first-floor slab ${(slabGround + slabFirst).toFixed(2)} m² ÷ 12.9 m² usable per sheet, +10% laps`, 'rule'))
-  L.push(line('Concrete & Foundations', '2000026', 'Damp-proof membrane under ground slab', slabGround / 100,
-    `Ground slab ${slabGround.toFixed(2)} m² ÷ ~100 m² per roll (plan section shows membrane under slab)`, 'rule'))
-  L.push(line('Concrete & Foundations', '2000266', 'Geotextile under slab', slabGround / 100,
-    'Plan slab detail shows geotextile; ~100 m² per roll', 'rule'))
+  L.push(line('Concrete & Foundations', '02-14', 'Plastic sheeting / under-slab membrane', slabGround * 1.1,
+    `Ground slab ${slabGround.toFixed(2)} m² +10% laps (plan section shows damp-proof membrane under screed)`, 'rule'))
+  L.push(line('Concrete & Foundations', '02-24', 'Geotextile membrane', slabGround * 1.05,
+    'Plan slab detail shows geotextile', 'rule'))
 
   // ---- Masonry
-  L.push(line('Masonry', '2000001', 'Stock bricks (plan: 220 mm external, 110 mm internal)', bricks,
+  L.push(line('Masonry', '01-03', 'Stock bricks (plan: 220 mm external, 110 mm internal walls)', bricks,
     `External net ${M.extNet.toFixed(1)} m² × 100 + internal net ${M.intNet.toFixed(1)} m² × 50 bricks/m², +5% waste. Walls: ${M.extLen} m external + ${M.intLen} m internal × ${plan.walls.height} m high, less openings`, 'measured'))
-  L.push(line('Masonry', '2000011', 'Cement for mortar', (bricks / 1000) * 6,
-    '≈6 bags of cement per 1 000 bricks', 'rule'))
-  L.push(line('Masonry', '2000013', 'Building sand for mortar (per load)', ((bricks / 1000) * 0.45) / 6,
-    '≈0.45 m³ sand per 1 000 bricks ÷ 6 m³ load', 'rule'))
-  L.push(line('Masonry', '2000021', 'Brickforce (per metre)', M.netWall * 3.3,
-    'One layer every 4th course ≈ 3.3 m per m² of wall', 'rule'))
-  L.push(line('Masonry', '1000841', 'DPC 225 mm × 40 m roll', ((plan.walls.external.ground + plan.walls.internal.ground) * 1.1) / 40,
-    `Ground-floor wall length ${plan.walls.external.ground + plan.walls.internal.ground} m, +10% laps`, 'measured'))
-  const winSteel = plan.windows.filter((w) => w.w >= 2000).reduce((s, w) => s + w.qty, 0)
-  const steelLintels = winSteel + plan.doors.filter((d) => d.kind !== 'gate' && d.w >= 2000).reduce((s, d) => s + d.qty, 0)
-  const precastLintels = M.totalWindows - winSteel + plan.doors.filter((d) => d.kind !== 'gate' && d.w < 2000).reduce((s, d) => s + d.qty, 0)
-  L.push(line('Masonry', '2000024', 'Precast concrete lintels', precastLintels,
-    'One per opening under 2.0 m wide (remaining windows + doors from the schedules)', 'schedule'))
-  L.push(line('Masonry', '2000025', 'Steel lintels (openings 2.0 m and wider)', steelLintels,
-    'Windows W1, W5, W9 plus folding doors FD1 and garage door GD1', 'schedule'))
+  L.push(line('Masonry', '01-19', 'Cement 32.5N 50 kg (mortar)', (bricks / 1000) * 6, '≈6 bags of cement per 1 000 bricks', 'rule'))
+  L.push(line('Masonry', '01-21', 'Building sand (m³, mortar)', (bricks / 1000) * 0.45, '≈0.45 m³ sand per 1 000 bricks', 'rule'))
+  L.push(line('Masonry', '01-16', 'Brickforce 150 mm rolls (15 m)', (M.netWall * 3.3) / 15,
+    'One layer every 4th course ≈ 3.3 m per m² of wall ÷ 15 m roll', 'rule'))
+  L.push(line('Masonry', '01-29', 'DPC roll 375 mm (20 m)', (footingLen * 1.1) / 20,
+    `Ground-floor wall length ${footingLen} m, +10% laps (20 m rolls assumed)`, 'measured'))
+  // Lintels: one per opening, sized to the opening + 300 mm bearing; 2.0 m+ openings take steel lintels
+  const openings = [
+    ...plan.windows.map((w) => ({ tag: w.tag, qty: w.qty, w: w.w })),
+    ...plan.doors.filter((x) => x.kind !== 'gate').map((x) => ({ tag: x.tag, qty: x.qty, w: x.w }))
+  ]
+  const precast = {}
+  let steelLen = 0
+  const steelTags = []
+  openings.forEach((o) => {
+    const need = o.w + 300
+    if (o.w >= 2000) {
+      steelLen += (need / 1000) * o.qty
+      steelTags.push(`${o.tag}×${o.qty}`)
+    } else {
+      const size = LINTEL_SIZES.find(([len]) => len >= need) || LINTEL_SIZES[LINTEL_SIZES.length - 1]
+      precast[size[1]] = (precast[size[1]] || 0) + o.qty
+    }
+  })
+  LINTEL_SIZES.forEach(([len, code]) => {
+    if (precast[code]) L.push(line('Masonry', code, `Precast concrete lintels ${len} mm`, precast[code],
+      `One per opening (opening width + 300 mm bearing) from the window and door schedules`, 'schedule'))
+  })
+  L.push(line('Masonry', '03-20', 'Steel lintels (6 m lengths) for openings 2.0 m and wider', steelLen / 6,
+    `${steelTags.join(', ')}: ${steelLen.toFixed(1)} m of lintel (opening + 300 mm) ÷ 6 m`, 'schedule'))
 
   // ---- Plaster
-  const plasterCement = M.plasterArea * 0.12
-  L.push(line('Plastering', '2000012', 'Plaster cement', plasterCement,
+  L.push(line('Plastering', '11-02', 'Cement 50 kg (plaster)', M.plasterArea * 0.12,
     `Plastered area ${M.plasterArea.toFixed(0)} m² (both faces) × ~0.12 bag/m² at 15 mm`, 'rule'))
-  L.push(line('Plastering', '2000014', 'Plaster sand (per load)', (M.plasterArea * 0.017 * 1.15) / 6,
-    '15 mm plaster ≈ 0.017 m³/m² + 15% bulking ÷ 6 m³ load', 'rule'))
+  L.push(line('Plastering', '11-01', 'Plaster sand (m³)', M.plasterArea * 0.017 * 1.15,
+    '15 mm plaster ≈ 0.017 m³/m² + 15% bulking', 'rule'))
 
   // ---- Roof
   const roof = plan.roof
-  L.push(line('Roof', '2000066', 'Prefabricated roof trusses', Math.ceil(15.7 / 1.0) + 1,
-    'Roof length ≈15.7 m at 1.0 m truss spacing + 1 end truss (30° pitch)', 'measured'))
-  L.push(line('Roof', '2000068', 'Concrete roof tiles', roof.slopedArea * 10 * 1.05,
+  const trusses = Math.ceil(15.7 / 1.0) + 1
+  L.push(line('Roof', '04-01', 'Prefabricated roof trusses (SAP Grade 6, 760 mm c/c)', trusses,
+    'Roof length ≈15.7 m at ~1.0 m truss spacing + 1 end truss (30° pitch); plan: designed + supplied by specialist', 'measured'))
+  L.push(line('Roof', '04-18', 'Concrete roof tiles (double-Roman)', roof.slopedArea * 10 * 1.05,
     `Plan roof ${roof.planArea} m² ÷ cos 30° ≈ ${roof.slopedArea} m² × 10 tiles/m², +5%`, 'rule'))
-  L.push(line('Roof', '2000062', 'Roof battens (6 m lengths)', (roof.slopedArea / 0.35 * 1.1) / 6,
+  L.push(line('Roof', '04-10', 'Roof battens (6 m lengths)', (roof.slopedArea / 0.35 * 1.1) / 6,
     `${roof.slopedArea} m² at 350 mm batten spacing, +10%`, 'rule'))
-  L.push(line('Roof', '1062572', 'Roof underlay roll 1.5×30 m', (roof.slopedArea * 1.1) / 45,
-    `${roof.slopedArea} m² +10% ÷ 45 m² per roll`, 'rule'))
-  L.push(line('Roof', '2000073', 'Ridge / hip / verge (per length)', 30 / 6,
-    '≈30 m of ridge + hips from the roof plan ÷ 6 m lengths', 'measured'))
-  L.push(line('Roof', '2000076', 'Fascia boards (6 m lengths)', roof.eavesPerimeter / 6,
-    `Eaves perimeter ≈${roof.eavesPerimeter} m`, 'measured'))
-  L.push(line('Roof', '2000078', 'Gutters (6 m lengths)', roof.eavesPerimeter / 6,
-    'Along eaves – plan notes require gutters & downpipes to SANS 10400-M', 'measured'))
-  L.push(line('Roof', '2000079', 'Downpipes', 4, '≈4 downpipes (one per ~15 m of gutter)', 'rule'))
-  L.push(line('Roof', '2000067', 'Truss clips / straps / tie-downs', (Math.ceil(15.7) + 1) * 4,
-    '4 fixings per truss', 'rule'))
-  L.push(line('Roof', '2000100', 'Thermal insulation roll', M.ceilingArea / 20,
-    `Ceiling area ${M.ceilingArea} m² ÷ ~20 m² per roll`, 'rule'))
+  L.push(line('Roof', '04-16', 'Roofing underlay rolls (45 m²)', (roof.slopedArea * 1.1) / 45, `${roof.slopedArea} m² +10% ÷ 45 m² per roll`, 'rule'))
+  L.push(line('Roof', '04-20', 'Ridge tiles', 30 * 2.5, '≈30 m of ridge + hips from the roof plan × 2.5 tiles/m', 'measured'))
+  L.push(line('Roof', '04-11', 'Fascia boards (6 m lengths)', roof.eavesPerimeter / 6, `Eaves perimeter ≈${roof.eavesPerimeter} m`, 'measured'))
+  L.push(line('Roof', '04-33', 'Gutters (6 m lengths)', roof.eavesPerimeter / 6, 'Along eaves – plan notes require gutters & downpipes to SANS 10400-M', 'measured'))
+  L.push(line('Roof', '04-34', 'Downpipes', 4, '≈4 downpipes (one per ~15 m of gutter)', 'rule'))
+  L.push(line('Roof', '04-43', 'Truss connector plates', trusses * 4, '4 fixings per truss', 'rule'))
 
   // ---- Flat roof slab (R.CONC roof slab with Derbigum build-up) – area is an assumption
   const flat = plan.areas.find((a) => a.name === 'Ground floor – garage').area
-  for (const [code, desc, per] of [['2000298', 'Torch-on waterproofing (Derbigum)', 1.1], ['2000299', 'Isoboard insulation 50 mm', 1.05], ['2000300', 'Dimpled drainage layer (Delta MS-8)', 1.05], ['2000301', 'Geotextile layer (roof slab)', 1.05]]) {
-    L.push(line('Flat roof', code, desc, flat * per, `R.CONC roof-slab build-up from the roof notes; flat roof assumed over the garage (${flat} m²) – confirm`, 'rule'))
-  }
-  L.push(line('Flat roof', '2000302', 'Stone aggregate 19–22 mm, 50 mm layer', flat * 0.05 * 1.1, `${flat} m² × 50 mm +10% (m³)`, 'rule'))
+  const FLAT = `R.CONC roof-slab build-up from the roof notes; flat roof assumed over the garage (${flat} m²) – confirm`
+  L.push(line('Flat roof', '04-44', 'Torch-on waterproofing membrane (Derbigum)', flat * 1.1, FLAT, 'rule'))
+  L.push(line('Flat roof', '04-45', 'Isoboard insulation 50 mm', flat * 1.05, FLAT, 'rule'))
+  L.push(line('Flat roof', '04-46', 'Dimpled drainage layer (Delta MS-8)', flat * 1.05, FLAT, 'rule'))
+  L.push(line('Flat roof', '02-24', 'Geotextile membrane (roof slab)', flat * 1.05, FLAT, 'rule'))
+  L.push(line('Flat roof', '02-10', 'Concrete stone 19 mm – 50 mm drainage layer (m³)', flat * 0.05 * 1.1, `${flat} m² × 50 mm +10%`, 'rule'))
 
   // ---- Ceilings
-  L.push(line('Ceilings', '1304135', 'Plasterboard 6.4×1200×3000 mm', (M.ceilingArea * 1.08) / 3.6,
+  const boards = (M.ceilingArea * 1.08) / 3.6
+  L.push(line('Ceilings', '05-18', 'Ceiling insulation rolls (135 mm Alutherm)', M.ceilingArea / 20, `Ceiling area ${M.ceilingArea} m² ÷ ~20 m² per roll`, 'rule'))
+  L.push(line('Ceilings', '05-01', 'Gypsum ceiling board 6.4 mm', boards,
     `First-floor ceiling ${M.ceilingArea} m² (floor area less walls) ÷ 3.6 m² per sheet, +8%`, 'rule'))
-  L.push(line('Ceilings', '2000090', 'Timber brandering (6 m lengths)', ((M.ceilingArea / 0.6) * 1.1) / 6,
-    'Brandering at 600 mm centres, +10%', 'rule'))
-  L.push(line('Ceilings', '2000095', 'Jointing compound', (M.ceilingArea * 1.08) / 3.6 / 25, '≈1 per 25 boards', 'rule'))
-  L.push(line('Ceilings', '2000094', 'Joint tape', (M.ceilingArea * 1.08) / 3.6 / 40, '≈1 roll per 40 boards', 'rule'))
-  L.push(line('Ceilings', '2000093', 'Ceiling screws', (M.ceilingArea * 1.08) / 3.6 / 20, '≈1 box per 20 boards', 'rule'))
-  L.push(line('Ceilings', '2000097', 'Cornices (6 m lengths)', Math.ceil(plan.rooms.filter((r) => r.level === 'First' && !/balcony/i.test(r.name)).reduce((s, r) => s + 4 * Math.sqrt(r.area), 0) / 3),
+  L.push(line('Ceilings', '05-05', 'Ceiling brandering (6 m lengths)', ((M.ceilingArea / 0.6) * 1.1) / 6, 'Brandering at 600 mm centres, +10%', 'rule'))
+  L.push(line('Ceilings', '05-13', 'Jointing compound', boards / 25, '≈1 bucket per 25 boards', 'rule'))
+  L.push(line('Ceilings', '05-12', 'Jointing tape', boards / 40, '≈1 roll per 40 boards', 'rule'))
+  L.push(line('Ceilings', '05-10', 'Ceiling screws', boards / 20, '≈1 box per 20 boards', 'rule'))
+  const cornice = plan.rooms.filter((r) => r.level === 'First' && !/balcony/i.test(r.name)).reduce((s, r) => s + 4 * Math.sqrt(r.area), 0)
+  L.push(line('Ceilings', '05-15', 'Gypsum cornice (3 m lengths)', cornice / 3,
     'Room perimeters from the first-floor room areas (≈4√area each) ÷ 3 m lengths', 'measured'))
 
   // ---- Doors (door schedule)
-  const d = (tag) => plan.doors.find((x) => x.tag === tag)
-  L.push(line('Doors & Windows', '2000288', `Door D1 – custom aluminium-framed glass pivot door (1600×2100)`, d('D1').qty, 'Door schedule: D1 ×1', 'schedule'))
-  L.push(line('Doors & Windows', '1383507', `Door D2 – medium-duty horizontal slatted timber external door`, d('D2').qty, 'Door schedule: D2 ×1', 'schedule'))
-  L.push(line('Doors & Windows', '2000289', `Door D3 – Class B fire door, horizontal slatted veneered (815×2035)`, d('D3').qty, 'Door schedule: D3 ×2 (garage-to-house fire doors)', 'schedule'))
-  L.push(line('Doors & Windows', '1108846', `Internal doors D4 ×${d('D4').qty} (760×2060) + D5 ×${d('D5').qty} (650×2060)`,
+  L.push(line('Doors & Windows', '06-40', 'Door D1 – custom aluminium-framed glass pivot door (1600×2100)', d('D1').qty, 'Door schedule: D1 ×1', 'schedule'))
+  L.push(line('Doors & Windows', '06-04', 'Door D2 – medium-duty horizontal slatted timber external door', d('D2').qty, 'Door schedule: D2 ×1', 'schedule'))
+  L.push(line('Doors & Windows', '06-07', 'Door D3 – Class B fire door, horizontal slatted veneered (815×2035)', d('D3').qty, 'Door schedule: D3 ×2 (garage-to-house fire doors)', 'schedule'))
+  L.push(line('Doors & Windows', '06-01', `Internal doors D4 ×${d('D4').qty} (760×2060) + D5 ×${d('D5').qty} (650×2060)`,
     d('D4').qty + d('D5').qty, 'Door schedule: D4 ×10 + D5 ×1 hollow-core internal doors', 'schedule'))
-  L.push(line('Doors & Windows', '2000105', `Folding doors FD1 ×${d('FD1').qty} (4000×2100)`, d('FD1').qty, 'Door schedule: FD1 ×2 aluminium folding doors', 'schedule'))
-  L.push(line('Doors & Windows', '2000291', `Garage door GD1 – horizontal slatted timber (4880×2425)`, d('GD1').qty, 'Door schedule: GD1 ×1', 'schedule'))
-  L.push(line('Doors & Windows', '2000106', `Automated garage-door opener (GD1)`, d('GD1').qty, 'Door schedule GD1 accessories: "Automated garage door opener"', 'schedule'))
-  L.push(line('Doors & Windows', '2000290', `Folding door gear (FD1, specialist supplied)`, d('FD1').qty, 'Door schedule FD1 accessories: folding door gear', 'schedule'))
-  L.push(line('Doors & Windows', '2000292', `Door frames – pressed steel (D2, D3)`, d('D2').qty + d('D3').qty, 'Door schedule: frame "Pressed steel"', 'schedule'))
-  L.push(line('Doors & Windows', '2000293', `Door frames – meranti timber (D4, D5)`, d('D4').qty + d('D5').qty, 'Door schedule: frame "Meranti"', 'schedule'))
-  L.push(line('External Works', '2000262', `Garden gates GG1 ×${d('GG1').qty} (1000×1715)`, d('GG1').qty, 'Door schedule: GG1 ×2 steel-framed garden gates', 'schedule'))
-  L.push(line('External Works', '2000296', `Gate spring auto-closers 250 mm (GG1)`, d('GG1').qty, 'Door schedule GG1 accessories: 250 mm gate spring as auto closer', 'schedule'))
-  L.push(line('External Works', '2000297', `Galvanised auto gate latches 127 mm (GG1)`, d('GG1').qty, 'Door schedule GG1 accessories: 127 mm galvanized auto gate latch', 'schedule'))
+  L.push(line('Doors & Windows', '06-09', `Folding doors FD1 ×${d('FD1').qty} (4000×2100)`, d('FD1').qty, 'Door schedule: FD1 ×2 aluminium folding doors (priced as aluminium sliding doors)', 'schedule'))
+  L.push(line('Doors & Windows', '06-43', 'Folding door gear (FD1, specialist supplied)', d('FD1').qty, 'Door schedule FD1 accessories', 'schedule'))
+  L.push(line('Doors & Windows', '06-41', 'Garage door GD1 – horizontal slatted timber (4880×2425)', d('GD1').qty, 'Door schedule: GD1 ×1', 'schedule'))
+  L.push(line('Doors & Windows', '06-42', 'Automated garage-door opener (GD1)', d('GD1').qty, 'Door schedule GD1 accessories: "Automated garage door opener"', 'schedule'))
+  L.push(line('Doors & Windows', '06-12', 'Door frames – pressed steel (D2, D3)', d('D2').qty + d('D3').qty, 'Door schedule: frame "Pressed steel"', 'schedule'))
+  L.push(line('Doors & Windows', '06-11', 'Door frames – meranti timber (D4, D5)', d('D4').qty + d('D5').qty, 'Door schedule: frame "Meranti"', 'schedule'))
   const handled = plan.doors.filter((x) => x.kind !== 'gate' && x.tag !== 'GD1' && x.tag !== 'FD1').reduce((s, x) => s + x.qty, 0)
-  L.push(line('Doors & Windows', '2000118', 'Door handles / locks / hinges sets', handled,
-    'One set per swing door (D1–D5)', 'schedule'))
+  L.push(line('Doors & Windows', '06-17', 'Door locksets', handled, 'One lockset per swing door (D1–D5)', 'schedule'))
+  L.push(line('External Works', '13-23', `Garden gates GG1 ×${d('GG1').qty} (1000×1715), steel-framed slatted`, d('GG1').qty, 'Door schedule: GG1 ×2', 'schedule'))
+  L.push(line('External Works', '13-35', 'Gate spring auto-closers 250 mm (GG1)', d('GG1').qty, 'Door schedule GG1 accessories', 'schedule'))
+  L.push(line('External Works', '13-36', 'Galvanised auto gate latches 127 mm (GG1)', d('GG1').qty, 'Door schedule GG1 accessories', 'schedule'))
 
   // ---- Windows (glazing schedule)
-  const topHung = plan.windows.filter((w) => !w.fixed)
-  const fixed = plan.windows.filter((w) => w.fixed)
-  const topHungQty = sum(topHung, (w) => w.qty)
-  L.push(line('Doors & Windows', '1339138',
-    `Aluminium top-hung + fixed windows – ${topHung.map((w) => `${w.tag}×${w.qty}`).join(', ')}`,
-    topHungQty, `Glazing schedule: ${topHungQty} aluminium windows (W1–W9), glazed area ${sum(topHung, (w) => w.qty * m2(w.w, w.h)).toFixed(1)} m²`, 'schedule'))
-  if (fixed.length) {
-    L.push(line('Doors & Windows', '2000109', `Fixed window – ${fixed.map((w) => `${w.tag}×${w.qty}`).join(', ')}`,
-      sum(fixed, (w) => w.qty), 'Glazing schedule: CW1 fixed panel 600×1800', 'schedule'))
-  }
-  L.push(line('Doors & Windows', '2000119', 'Window stays / handles / locks', topHungQty,
-    'One set per opening window', 'schedule'))
+  const winQty = sum(plan.windows, (w) => w.qty)
+  const topHungQty = sum(plan.windows.filter((w) => !w.fixed), (w) => w.qty)
+  L.push(line('Doors & Windows', '06-24',
+    `Aluminium windows – ${plan.windows.map((w) => `${w.tag}×${w.qty}`).join(', ')}`, winQty,
+    `Glazing schedule: ${winQty} aluminium windows, glazed area ${sum(plan.windows, (w) => w.qty * m2(w.w, w.h)).toFixed(1)} m² (fixed CW1 priced as a top-hung unit)`, 'schedule'))
+  L.push(line('Doors & Windows', '06-33', 'Window stays and handles', topHungQty, 'One set per opening window', 'schedule'))
 
   // ---- Plumbing (fixture tags)
-  const fx = (n) => plan.fixtures.find((f) => f.name === n)?.qty || 0
-  L.push(line('Plumbing', '2000134', 'WC suites', fx('WC'), 'Fixture tags on floor plans', 'schedule'))
-  L.push(line('Plumbing', '2000135', 'Hand-wash basins', fx('Hand-wash basin'), 'Fixture tags on floor plans', 'schedule'))
-  L.push(line('Plumbing', '2000136', 'Baths', fx('Bath'), 'Fixture tags on floor plans', 'schedule'))
-  L.push(line('Plumbing', '2000137', 'Shower sets', fx('Shower'), 'Fixture tags on floor plans', 'schedule'))
-  L.push(line('Plumbing', '2000139', 'Kitchen sink', fx('Kitchen sink'), 'Fixture tag on floor plan', 'schedule'))
-  L.push(line('Plumbing', '2000128', '200 L geyser (hot-water storage vessel)', fx('200 L hot-water storage vessel (solar, in ceiling void)'),
+  const wc = fx('WC'), hwb = fx('Hand-wash basin'), bath = fx('Bath'), sh = fx('Shower')
+  L.push(line('Plumbing', '07-33', 'Toilet pans', wc, 'Fixture tags on floor plans', 'schedule'))
+  L.push(line('Plumbing', '07-34', 'Toilet cisterns', wc, 'One per WC', 'schedule'))
+  L.push(line('Plumbing', '07-35', 'Toilet seats', wc, 'One per WC', 'schedule'))
+  L.push(line('Plumbing', '07-36', 'Wash-hand basins (HWB)', hwb, 'Fixture tags on floor plans', 'schedule'))
+  L.push(line('Plumbing', '07-37', 'Pedestals', hwb, 'One per basin', 'schedule'))
+  L.push(line('Plumbing', '07-29', 'Basin mixers', hwb, 'One per basin', 'schedule'))
+  L.push(line('Plumbing', '07-39', 'Baths', bath, 'Fixture tags on floor plans', 'schedule'))
+  L.push(line('Plumbing', '07-32', 'Bath mixers', bath, 'One per bath', 'schedule'))
+  L.push(line('Plumbing', '07-31', 'Shower mixers', sh, 'Fixture tags on floor plans', 'schedule'))
+  L.push(line('Plumbing', '07-40', 'Shower trays', sh, 'One per shower', 'schedule'))
+  L.push(line('Plumbing', '07-38', 'Kitchen sink, stainless steel', fx('Kitchen sink'), 'Fixture tag on floor plan', 'schedule'))
+  L.push(line('Plumbing', '07-30', 'Sink mixer', fx('Kitchen sink'), 'One per sink', 'schedule'))
+  L.push(line('Plumbing', '07-70', 'Washing-machine / dishwasher / dryer connection points',
+    fx('Dishwasher point') + fx('Washing-machine point') + fx('Tumble-dryer point'), 'Appliance tags on GF plan', 'schedule'))
+  L.push(line('Plumbing', '07-49', 'Geyser 200 L (hot-water storage vessel)', fx('200 L hot-water storage vessel (solar, in ceiling void)'),
     'Water reticulation sheet: 200 L vessel in ceiling void', 'schedule'))
-  L.push(line('Plumbing', '2000303', 'Solar panel collector (roof-mounted)', 1, 'Roof plan: "Solar panel collector on roof"', 'schedule'))
-  L.push(line('Plumbing', '2000305', 'Water meter / meter box', 1, 'Site plan: water meter', 'schedule'))
-  L.push(line('Plumbing', '2000307', 'Open vent pipe (OVP) – 110 mm through roof', 2, 'Drainage notes: OVP to protrude min 100 mm above roof (one per stack, assumed 2)', 'rule'))
-  L.push(line('Plumbing', '2000306', 'uPVC 50 mm dia waste pipe (lengths)', 8, 'Drainage notes: basins, sinks, baths, showers on 50 mm waste; ≈48 m ÷ 6 m', 'rule'))
-  L.push(line('Plumbing', '2000308', 'Floor gully traps', fx('Floor gully'), 'Floor gully tags on GF plan', 'schedule'))
-  L.push(line('Plumbing', '2000309', 'Washing-machine / dishwasher / dryer connection points', fx('Dishwasher point') + fx('Washing-machine point') + fx('Tumble-dryer point'), 'Appliance tags on GF plan', 'schedule'))
-  L.push(line('Plumbing', '2000129', 'Geyser drip tray', 1, 'One per geyser', 'rule'))
-  L.push(line('Plumbing', '2000130', 'Geyser valves / vacuum breakers', 1, 'One set per geyser', 'rule'))
-  L.push(line('Plumbing', '2000147', 'Garden tap', fx('Garden tap'), 'Water-reticulation sheet: tap at water meter', 'schedule'))
-  L.push(line('Plumbing', '2000143', 'P-traps / bottle traps', fx('Hand-wash basin') + fx('Bath') + fx('Shower') + fx('Kitchen sink') + fx('Dishwasher point') + fx('Washing-machine point'),
-    'One trap per waste fixture', 'rule'))
-  L.push(line('Plumbing', '2000144', 'Inspection chambers / gully covers', fx('Floor gully'), 'Floor gully tags on GF plan', 'schedule'))
-  L.push(line('Plumbing', '2000141', 'uPVC 110 mm soil / sewer pipe (lengths)', 10, 'Drainage notes: 110 mm uPVC soil pipe, ≈60 m run ÷ 6 m', 'rule'))
-  L.push(line('Plumbing', '2000142', 'Soil fittings / bends / junctions', 20, 'Approx. 2 per WC / junction run', 'rule'))
-  L.push(line('Plumbing', '2000124', 'Water pipe Ø20 (lengths)', 20, 'Water reticulation layout: ≈120 m hot + cold Ø20 ÷ 6 m', 'rule'))
+  L.push(line('Plumbing', '07-66', 'Solar panel collector (roof-mounted)', 1, 'Roof plan: "Solar panel collector on roof"', 'schedule'))
+  L.push(line('Plumbing', '07-50', 'Geyser drip tray', 1, 'One per geyser', 'rule'))
+  L.push(line('Plumbing', '07-51', 'Geyser safety valve set', 1, 'One set per geyser', 'rule'))
+  L.push(line('Plumbing', '07-52', 'Geyser vacuum breakers', 2, 'Hot-water and cold-feed vacuum breakers', 'rule'))
+  L.push(line('Plumbing', '07-26', 'PCV – pressure control valve', 1, 'Water reticulation legend: PCV', 'schedule'))
+  L.push(line('Plumbing', '07-68', 'Water meter / meter box', 1, 'Site plan: water meter', 'schedule'))
+  L.push(line('Plumbing', '07-28', 'Garden tap (bib tap)', fx('Garden tap'), 'Water-reticulation sheet: tap at water meter', 'schedule'))
+  L.push(line('Plumbing', '07-67', 'Ø25 HDPE PN10 underground water pipe (m)', 15, 'Water reticulation: municipal connection to meter, ≈15 m assumed', 'rule'))
+  L.push(line('Plumbing', '07-01', 'PPR pipe 20 mm (Ø20 hot & cold, lengths)', 20, 'Water reticulation layout: ≈120 m hot + cold Ø20 ÷ 6 m', 'rule'))
+  L.push(line('Plumbing', '07-11', 'Soil pipe 110 mm (lengths)', 10, 'Drainage notes: 110 mm uPVC soil pipe, ≈60 m run ÷ 6 m', 'rule'))
+  L.push(line('Plumbing', '07-10', 'Waste pipe 50 mm (lengths)', 8, 'Drainage notes: basins, sinks, baths, showers on 50 mm waste; ≈48 m ÷ 6 m', 'rule'))
+  L.push(line('Plumbing', '07-19', 'PVC bends', 12, 'Approx. 1 per fixture run', 'rule'))
+  L.push(line('Plumbing', '07-20', 'PVC junctions', 8, 'Approx. 2 per WC / stack junction', 'rule'))
+  L.push(line('Plumbing', '07-69', 'Open vent pipe (OVP) – 110 mm through roof', 2, 'Drainage notes: OVP min 100 mm above roof (assumed 2 stacks)', 'rule'))
+  L.push(line('Plumbing', '07-43', 'Gullies', fx('Floor gully'), 'Floor gully tags on GF plan', 'schedule'))
+  L.push(line('Plumbing', '07-45', 'Inspection chambers', 2, 'Municipal sewer connection – assumed 2 chambers', 'rule'))
 
   // ---- Painting (derived areas)
-  const paintInt = (M.extNet + M.intNet * 2) + M.ceilingArea
-  L.push(line('Painting', '2000203', 'Interior wall paint 5 L', (M.extNet + M.intNet * 2) * 2 / 30,
-    `Internal wall faces ${(M.extNet + M.intNet * 2).toFixed(0)} m² × 2 coats ÷ 30 m² per 5 L`, 'rule'))
-  L.push(line('Painting', '2000204', 'Ceiling paint 5 L', (M.ceilingArea * 2) / 30, `Ceiling ${M.ceilingArea} m² × 2 coats ÷ 30 m² per 5 L`, 'rule'))
-  L.push(line('Painting', '2000206', 'Exterior wall paint 5 L', (M.extNet * 2) / 30, `External faces ${M.extNet.toFixed(0)} m² × 2 coats ÷ 30 m² per 5 L`, 'rule'))
-  L.push(line('Painting', '2000208', 'Plaster primer / sealer 5 L', (M.extNet * 2 + M.intNet * 2 + M.extNet) / 60,
-    'Primer coat over plastered area ÷ 60 m² per 5 L', 'rule'))
-  void paintInt
+  const intFaces = M.extNet + M.intNet * 2
+  L.push(line('Painting', '10-02', 'Interior PVA paint 20 L', (intFaces * 2) / 6 / 20, `Internal wall faces ${intFaces.toFixed(0)} m² × 2 coats ÷ 6 m²/L ÷ 20 L`, 'rule'))
+  L.push(line('Painting', '10-05', 'Ceiling paint (litres)', (M.ceilingArea * 2) / 6, `Ceiling ${M.ceilingArea} m² × 2 coats ÷ 6 m²/L`, 'rule'))
+  L.push(line('Painting', '10-04', 'Exterior acrylic paint 20 L', (M.extNet * 2) / 6 / 20, `External faces ${M.extNet.toFixed(0)} m² × 2 coats ÷ 6 m²/L ÷ 20 L`, 'rule'))
+  L.push(line('Painting', '10-06', 'Plaster primer (litres)', M.plasterArea / 8, `Plastered area ${M.plasterArea.toFixed(0)} m² ÷ 8 m²/L`, 'rule'))
 
   return {
     lines: L,

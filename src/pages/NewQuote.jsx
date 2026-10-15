@@ -13,7 +13,7 @@ import { useAppState, canGenerateQuote, currentUser } from '../data/store'
 import { LOGO_BASE64 } from '../data/logo'
 import { db } from '../data/db'
 import { SUPPLIERS } from '../data/suppliers'
-import { DEFAULT_PRICE_LIST } from '../data/defaultPriceList'
+import { getDefaultPriceList } from '../data/supplierPriceLists'
 import { DEMO_PLAN, buildTakeoff } from '../data/demoPlan'
 import { createQuotePdf, quotePdfFileName } from '../data/quotePdf'
 
@@ -32,7 +32,9 @@ const STEPS = [
 // Categories a plan can never tell you about — the contractor has to choose
 // these themselves rather than having them auto-extracted. Surfaced as
 // quick filters on the "Add Items Not on Plan" step.
-const SUGGESTED_EXTRA_CATEGORIES = ['Labour & Services']
+const SUGGESTED_EXTRA_CATEGORIES = []
+// Labour & Services (price-list category 14) has its own block on the labour step.
+const isLabourCategory = (name) => String(name).includes('Labour & Services')
 
 // Consumables (the price list's "12 General Fixings & Consumables" category)
 // has its own optional step, so it's matched here and kept out of the
@@ -103,7 +105,7 @@ export default function NewQuote() {
     db.get('priceLists', supplier).then((uploaded) => {
       // An admin-uploaded list wins; otherwise use the built-in demo list so
       // every supplier always has real categories, items and prices.
-      const record = uploaded?.items?.length ? uploaded : DEFAULT_PRICE_LIST
+      const record = uploaded?.items?.length ? uploaded : getDefaultPriceList(supplier)
       const map = {}
       record.items.forEach((it) => {
         if (it.code) map[String(it.code)] = it
@@ -156,7 +158,7 @@ export default function NewQuote() {
 
   const allMaterials = [...materials, ...extraMaterials, ...consumableLines]
   // Step 3 browses every category except consumables (which has its own step).
-  const extraCatalog = priceCatalog.filter((c) => !isConsumablesCategory(c.category))
+  const extraCatalog = priceCatalog.filter((c) => !isConsumablesCategory(c.category) && !isLabourCategory(c.category))
 
   function withPriceListRates(items) {
     if (!priceOverrides) return items
@@ -190,6 +192,11 @@ export default function NewQuote() {
   // Site supervision is days × rate per day (example values — contractor enters their own)
   const [supervisionDays, setSupervisionDays] = useState('10')
   const [supervisionRate, setSupervisionRate] = useState('500')
+
+  // Labour & services picked from the supplier price list (category 14): qty per item,
+  // plus an optional rate override (defaults to the list price).
+  const [labourItemQtys, setLabourItemQtys] = useState({})
+  const [labourItemRates, setLabourItemRates] = useState({})
 
   // Deposit (optional): off by default; a % of the quote total or a rand amount
   const [depositEnabled, setDepositEnabled] = useState(false)
@@ -250,6 +257,14 @@ export default function NewQuote() {
     return { ...t, basis, unit, rate, cost: rate * (parseFloat(basis) || 0) }
   })
   const fixedLines = LABOUR_FIXED.filter((f) => f.id !== 'supervision').map((f) => ({ ...f, amount: parseFloat(fixedLabour[f.id]) || 0 }))
+  const labourCatalog = priceCatalog.find((c) => isLabourCategory(c.category)) || null
+  const labourItemLines = (labourCatalog?.items || [])
+    .map((it) => {
+      const qty = parseFloat(labourItemQtys[it.code]) || 0
+      const rate = labourItemRates[it.code] !== undefined ? parseFloat(labourItemRates[it.code]) || 0 : it.price
+      return { ...it, qty, rate, cost: qty * rate }
+    })
+    .filter((it) => it.qty > 0)
   const supervisionCost = (parseFloat(supervisionDays) || 0) * (parseFloat(supervisionRate) || 0)
   const customLabourLines = customLabour.map((r) => ({
     ...r,
@@ -258,6 +273,7 @@ export default function NewQuote() {
   const labourCost =
     labourLines.reduce((sum, l) => sum + l.cost, 0) +
     supervisionCost +
+    labourItemLines.reduce((sum, l) => sum + l.cost, 0) +
     fixedLines.reduce((sum, f) => sum + f.amount, 0) +
     customLabourLines.reduce((sum, l) => sum + l.cost, 0)
 
@@ -634,9 +650,9 @@ export default function NewQuote() {
           <div className="card">
             <h2 className="text-lg font-semibold mb-1">Add items not on the plan</h2>
             <p className="text-sm text-gray-500 mb-4">
-              Some items never show up on a drawing — labour and services are the contractor's call.
+              Some items never show up on a drawing.
               Pick any item from the {supplierInfo?.name || 'supplier'} price list and add it to this
-              quote. Consumables have their own step next.
+              quote. Consumables have their own step next, and labour &amp; services are added on the labour step.
             </p>
 
             {!extraCatalog.length ? (
@@ -1027,6 +1043,46 @@ export default function NewQuote() {
               ))}
             </div>
 
+            {labourCatalog && (
+              <div className="mt-5 pt-4 border-t">
+                <h3 className="text-sm font-semibold mb-1">Labour &amp; services from the {supplierInfo?.name || 'supplier'} price list</h3>
+                <p className="text-xs text-gray-400 mb-3">
+                  Enter a quantity for every item you want on this quote. The rate comes from the price list
+                  (example figures) — change it to your own rate if needed.
+                </p>
+                <div className="grid grid-cols-12 gap-2 text-[11px] text-gray-400 px-0.5 mb-1">
+                  <span className="col-span-6">Item</span>
+                  <span className="col-span-3">Rate (R) / unit</span>
+                  <span className="col-span-3">Qty</span>
+                </div>
+                <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                  {labourCatalog.items.map((it) => (
+                    <div key={it.code} className="grid grid-cols-12 gap-2 items-center">
+                      <span className="col-span-6 text-sm leading-tight">{it.description}</span>
+                      <div className="col-span-3">
+                        <input
+                          type="number"
+                          min="0"
+                          className="w-full border rounded-lg px-2 py-1.5 text-sm"
+                          value={labourItemRates[it.code] !== undefined ? labourItemRates[it.code] : it.price}
+                          onChange={(e) => setLabourItemRates((r) => ({ ...r, [it.code]: e.target.value }))}
+                        />
+                        <span className="text-[10px] text-gray-400">per {it.unit}</span>
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        className="col-span-3 border rounded-lg px-2 py-1.5 text-sm"
+                        placeholder="0"
+                        value={labourItemQtys[it.code] || ''}
+                        onChange={(e) => setLabourItemQtys((q) => ({ ...q, [it.code]: e.target.value }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="mt-5 pt-4 border-t">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-semibold">Your own line items</h3>
@@ -1103,6 +1159,12 @@ export default function NewQuote() {
                 <div key={l.id} className="flex justify-between">
                   <span className="text-gray-500">{l.label || 'Custom line item'}</span>
                   <span>R {l.cost.toFixed(2)}</span>
+                </div>
+              ))}
+              {labourItemLines.map((l) => (
+                <div key={l.code} className="flex justify-between gap-3">
+                  <span className="text-gray-500">{l.description} ({l.qty} {l.unit})</span>
+                  <span className="whitespace-nowrap">R {l.cost.toFixed(2)}</span>
                 </div>
               ))}
               <div className="flex justify-between">
