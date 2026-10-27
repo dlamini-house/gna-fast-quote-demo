@@ -13,9 +13,10 @@ import { useAppState, canGenerateQuote, currentUser } from '../data/store'
 import { LOGO_BASE64 } from '../data/logo'
 import { db } from '../data/db'
 import { SUPPLIERS } from '../data/suppliers'
-import { getDefaultPriceList } from '../data/supplierPriceLists'
+import { getDefaultPriceList, cosaveRatesFromItems, AVERAGE_SLUG } from '../data/supplierPriceLists'
 import { DEMO_PLAN, buildTakeoff } from '../data/demoPlan'
-import { createQuotePdf, quotePdfFileName } from '../data/quotePdf'
+import { createQuotePdf, quotePdfFileName, createBoqPdf, boqPdfFileName } from '../data/quotePdf'
+import { buildScope } from '../data/quoteScope'
 
 const STEPS = [
   'Select Supplier',
@@ -26,13 +27,17 @@ const STEPS = [
   'Pricing Engine',
   'Add Labour Rate',
   'Review Quote',
-  'Deposit & PDF Quote'
+  'Deposit & Download'
 ]
 
 // Categories a plan can never tell you about — the contractor has to choose
 // these themselves rather than having them auto-extracted. Surfaced as
 // quick filters on the "Add Items Not on Plan" step.
 const SUGGESTED_EXTRA_CATEGORIES = []
+
+// Not a supplier: the quote uses the average of all six suppliers' prices.
+const AVERAGE_OPTION = { slug: AVERAGE_SLUG, name: 'Average estimate' }
+const COSAVE_SLUG = 'cosave-powerbuild'
 // Labour & Services (price-list category 14) has its own block on the labour step.
 const isLabourCategory = (name) => String(name).includes('Labour & Services')
 
@@ -61,7 +66,7 @@ export default function NewQuote() {
 
   // Step 0: which supplier's price list this quote's materials come from
   const [supplier, setSupplier] = useState(null)
-  const supplierInfo = SUPPLIERS.find((s) => s.slug === supplier) || null
+  const supplierInfo = supplier === AVERAGE_SLUG ? AVERAGE_OPTION : SUPPLIERS.find((s) => s.slug === supplier) || null
 
   // Step 1
   const [projectName, setProjectName] = useState('')
@@ -78,6 +83,7 @@ export default function NewQuote() {
   const [materials, setMaterials] = useState(MOCK_EXTRACTED_MATERIALS.map((m) => ({ ...m })))
   const [priceListInfo, setPriceListInfo] = useState(null) // uploaded BUCO price list metadata, if any
   const [priceOverrides, setPriceOverrides] = useState(null) // code -> { price, description } from that upload
+  const [ratesOnly, setRatesOnly] = useState(false) // Cosave: plan items with no Cosave equivalent stay unpriced (R0)
   const [priceCatalog, setPriceCatalog] = useState([]) // full [{ category, items }] from that upload, for browsing
 
   // Step 3: items the contractor adds themselves — things no plan can show,
@@ -102,14 +108,28 @@ export default function NewQuote() {
     setPriceOverrides(null)
     setPriceListInfo(null)
     setPriceCatalog([])
+    setExtraMaterials([])
+    setExtraQtyDrafts({})
+    setConsumableQtys({})
     db.get('priceLists', supplier).then((uploaded) => {
       // An admin-uploaded list wins; otherwise use the built-in demo list so
       // every supplier always has real categories, items and prices.
-      const record = uploaded?.items?.length ? uploaded : getDefaultPriceList(supplier)
+      const builtIn = getDefaultPriceList(supplier)
+      // An upload only replaces the built-in list if it is newer than it.
+      const useUpload = uploaded?.items?.length && new Date(uploaded.uploadedAt) > new Date(builtIn.uploadedAt)
+      const record = useUpload ? uploaded : builtIn
       const map = {}
-      record.items.forEach((it) => {
-        if (it.code) map[String(it.code)] = it
-      })
+      if (supplier === COSAVE_SLUG) {
+        // Cosave has its own catalogue: plan items are priced only where Cosave has an equivalent.
+        const rates = record.rates || cosaveRatesFromItems(record.items)
+        Object.keys(rates).forEach((code) => { map[code] = { price: rates[code] } })
+        setRatesOnly(true)
+      } else {
+        record.items.forEach((it) => {
+          if (it.code) map[String(it.code)] = it
+        })
+        setRatesOnly(false)
+      }
       setPriceOverrides(map)
       setPriceListInfo(record)
       setPriceCatalog(record.categories || [])
@@ -157,6 +177,7 @@ export default function NewQuote() {
     : []
 
   const allMaterials = [...materials, ...extraMaterials, ...consumableLines]
+  const unpricedCount = materials.filter((m) => m.noPrice && !(m.rate > 0) && (parseFloat(m.qty) || 0) > 0).length
   // Step 3 browses every category except consumables (which has its own step).
   const extraCatalog = priceCatalog.filter((c) => !isConsumablesCategory(c.category) && !isLabourCategory(c.category))
 
@@ -167,7 +188,10 @@ export default function NewQuote() {
       // The price list's wording is generic ("Internal doors"), the plan's
       // line is specific ("Door Hardboard Hollow Core 813x2032mm") — keep the
       // specific description and take only the rate from the list.
-      return match ? { ...m, rate: match.price } : m
+      if (match) return { ...m, rate: match.price, noPrice: false }
+      // Cosave: no like-for-like item, so leave it unpriced for the contractor to fill in.
+      if (ratesOnly) return { ...m, rate: 0, noPrice: true, rateInput: '' }
+      return m.noPrice ? { ...m, noPrice: false } : m
     })
   }
 
@@ -239,6 +263,10 @@ export default function NewQuote() {
     }, 2200)
   }
 
+  function updateMaterialRate(id, value) {
+    setMaterials((items) => items.map((it) => (it.id === id ? { ...it, rate: parseFloat(value) || 0, rateInput: value } : it)))
+  }
+
   function updateMaterialQty(id, qty) {
     setMaterials((items) => items.map((it) => (it.id === id ? { ...it, qty } : it)))
   }
@@ -300,46 +328,118 @@ export default function NewQuote() {
         }
       : null
 
-  const reference = `GNA-DEMO-${String(state.quotes.length + 1).padStart(3, '0')}`
+  // Fixed for the life of this quote (numbered after the highest existing reference, so deleting a quote never repeats a number).
+  const [reference] = useState(() => {
+    const nums = state.quotes.map((q) => parseInt(String(q.reference || '').replace(/\D/g, ''), 10)).filter((n) => Number.isFinite(n))
+    return `GNA-DEMO-${String((nums.length ? Math.max(...nums) : 0) + 1).padStart(3, '0')}`
+  })
 
-  async function generatePdf() {
-    const data = {
+  const quotedBy = { company: user?.company, address: user?.companyAddress, email: user?.email }
+
+  // Client quote: scope of work + ONE total. No rates, no per-trade prices, no mark-up.
+  function buildQuoteData() {
+    return {
       reference,
       dateLabel: new Date().toLocaleDateString(),
       projectName,
       clientName,
       siteAddress,
-      // Mark-up is folded into the material figure — the client never sees it as a line.
-      rows: [
-        ['Material Cost', materialCost + markupAmount],
-        ['Labour Cost', labourCost],
-        ['Transport / Location Allowance', transport],
-        [`VAT (${vatPercent}%)`, vatAmount]
-      ],
+      scope: buildScope({
+        materials,
+        extraMaterials,
+        consumableLines,
+        labourLines,
+        labourItemLines,
+        customLabourLines,
+        supervisionDays,
+        fixedLines
+      }),
+      subtotal: markedUp,
+      vatLabel: `VAT (${vatPercent}%)`,
+      vatAmount,
       grandTotal,
       deposit: depositInfo,
-      quotedBy: { company: user?.company, address: user?.companyAddress, email: user?.email }
+      quotedBy
     }
-    const doc = await createQuotePdf(data, user?.logoDataUrl)
-    doc.save(quotePdfFileName(data))
+  }
 
-    const newQuote = {
-      id: Date.now(),
+  // BOQ: every material line at the supplier's rate. The mark-up is never applied or shown.
+  function buildBoqData() {
+    const groups = []
+    allMaterials.forEach((m) => {
+      const qty = parseFloat(m.qty) || 0
+      if (qty <= 0) return
+      const title = categoryLabel(m.source)
+      let g = groups.find((x) => x.title === title)
+      if (!g) groups.push((g = { title, rows: [] }))
+      g.rows.push({
+        code: m.code,
+        description: m.description,
+        unit: m.unit || 'each',
+        qty,
+        rate: m.rate,
+        amount: qty * m.rate,
+        noPrice: !!m.noPrice
+      })
+    })
+    return {
       reference,
-      projectName: projectName || 'Untitled project',
-      customerName: clientName,
+      dateLabel: new Date().toLocaleDateString(),
+      projectName,
+      clientName,
       siteAddress,
-      total: grandTotal,
-      deposit: depositInfo ? depositInfo.amount : null,
-      status: 'completed',
-      createdAt: new Date().toISOString(),
-      ownerEmail: user?.email || null,
-      ownerCompany: user?.company || null,
-      pdfData: data
+      supplierName: supplierInfo?.name || '',
+      groups,
+      total: materialCost,
+      quotedBy
     }
-    setState((s) => ({ ...s, quotes: [...s.quotes, newQuote] }))
-    db.set('quotes', String(newQuote.id), newQuote)
-    navigate('/quotes')
+  }
+
+  async function downloadBoqPreview() {
+    const data = buildBoqData()
+    const doc = await createBoqPdf(data, user?.logoDataUrl)
+    doc.save(boqPdfFileName(data))
+  }
+
+  const previewScope = buildScope({ materials, extraMaterials, consumableLines, labourLines, labourItemLines, customLabourLines, supervisionDays, fixedLines })
+  const [savedQuoteId, setSavedQuoteId] = useState(null)
+  const [downloadedMsg, setDownloadedMsg] = useState('')
+
+  // 'quote' | 'boq' | 'both'. The quote is saved to the Quotes page the first time.
+  async function downloadFinal(which) {
+    const pdfData = buildQuoteData()
+    const boqData = buildBoqData()
+    if (which === 'quote' || which === 'both') {
+      const doc = await createQuotePdf(pdfData, user?.logoDataUrl)
+      doc.save(quotePdfFileName(pdfData))
+    }
+    if (which === 'boq' || which === 'both') {
+      const doc = await createBoqPdf(boqData, user?.logoDataUrl)
+      doc.save(boqPdfFileName(boqData))
+    }
+    if (!savedQuoteId) {
+      const newQuote = {
+        id: Date.now(),
+        reference,
+        projectName: projectName || 'Untitled project',
+        customerName: clientName,
+        siteAddress,
+        total: grandTotal,
+        deposit: depositInfo ? depositInfo.amount : null,
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+        ownerEmail: user?.email || null,
+        ownerCompany: user?.company || null,
+        pdfData,
+        boqData
+      }
+      setSavedQuoteId(newQuote.id)
+      setState((st) => ({ ...st, quotes: [...st.quotes, newQuote], quotesCreated: Math.max(st.quotesCreated || 0, st.quotes.length) + 1 }))
+      db.set('quotes', String(newQuote.id), newQuote)
+    }
+    setDownloadedMsg(
+      which === 'both' ? 'Quote and BOQ downloaded.' : which === 'quote' ? 'Quote downloaded.' : 'BOQ downloaded.'
+    )
   }
 
   if (!allowed) {
@@ -377,7 +477,8 @@ export default function NewQuote() {
         <div className="card max-w-2xl">
           <h2 className="text-lg font-semibold mb-1">Select Supplier for materials</h2>
           <p className="text-sm text-gray-500 mb-6">
-            Choose which supplier's price list this quote's material rates will be pulled from.
+            Choose which supplier's price list this quote's material rates will be pulled from, or pick
+            Average estimate below to use the average of all 6 suppliers.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
             {SUPPLIERS.map((s) => {
@@ -412,6 +513,27 @@ export default function NewQuote() {
               )
             })}
           </div>
+          <button
+            type="button"
+            onClick={() => setSupplier(AVERAGE_SLUG)}
+            className={`relative w-full mb-6 border rounded-xl p-4 flex items-center gap-4 text-left transition-colors cursor-pointer ${
+              supplier === AVERAGE_SLUG ? 'border-brand-blue bg-blue-50' : 'border-gray-200 hover:border-brand-blue'
+            }`}
+          >
+            <span className="h-12 w-12 shrink-0 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-brand-blue" aria-hidden="true">
+              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+                <path d="M2 12h20" strokeDasharray="2 3" />
+              </svg>
+            </span>
+            <span className="flex-1">
+              <span className="block text-sm font-semibold">Average estimate</span>
+              <span className="block text-xs text-gray-500">Not sure which supplier yet? Prices are the average across all 6 suppliers.</span>
+            </span>
+            {supplier === AVERAGE_SLUG && (
+              <span className="h-5 w-5 rounded-full bg-brand-blue text-white text-xs flex items-center justify-center">&#10003;</span>
+            )}
+          </button>
           <button className="btn-primary" disabled={!supplier} onClick={() => setStep(1)}>
             Next: Upload Plan
           </button>
@@ -617,13 +739,35 @@ export default function NewQuote() {
                         />
                       </td>
                       <td className="py-2 pr-2 text-gray-500">{m.unit}</td>
-                      <td className="py-2 pr-2 text-right">R {m.rate.toFixed(2)}</td>
+                      <td className="py-2 pr-2 text-right">
+                        {m.noPrice ? (
+                          <>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="Your rate"
+                              className="w-24 border border-amber-300 bg-amber-50 rounded px-2 py-1 text-right"
+                              value={m.rateInput ?? ''}
+                              onChange={(e) => updateMaterialRate(m.id, e.target.value)}
+                            />
+                            {!(m.rate > 0) && <span className="block text-[11px] text-amber-700">No {supplierInfo?.name || 'supplier'} price</span>}
+                          </>
+                        ) : (
+                          <>R {m.rate.toFixed(2)}</>
+                        )}
+                      </td>
                       <td className="py-2 text-right font-medium">R {((parseFloat(m.qty) || 0) * m.rate).toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            {unpricedCount > 0 && (
+              <p className="mt-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                {unpricedCount} line{unpricedCount === 1 ? '' : 's'} {unpricedCount === 1 ? 'has' : 'have'} no {supplierInfo?.name || 'supplier'} equivalent, so
+                {unpricedCount === 1 ? ' it is' : ' they are'} at R 0.00. Enter your own rate in the highlighted box{unpricedCount === 1 ? '' : 'es'}, or choose another supplier or Average estimate.
+              </p>
+            )}
 
             {takeoff && (
               <div className="mt-5 border border-amber-200 bg-amber-50 rounded-lg px-4 py-3">
@@ -858,7 +1002,10 @@ export default function NewQuote() {
 
             <div className="flex justify-between mt-6">
               <button className="btn-secondary" onClick={() => setStep(3)}>Back</button>
-              <button className="btn-primary" onClick={() => setStep(5)}>Next: Pricing Engine</button>
+              <div className="flex gap-2">
+                <button className="btn-secondary" onClick={downloadBoqPreview}>Download BOQ (PDF)</button>
+                <button className="btn-primary" onClick={() => setStep(5)}>Next: Pricing Engine</button>
+              </div>
             </div>
           </div>
 
@@ -937,6 +1084,7 @@ export default function NewQuote() {
               <span>Material Cost</span>
               <span>R {materialCost.toFixed(2)}</span>
             </div>
+            <button className="btn-secondary w-full mt-3" onClick={downloadBoqPreview}>Download BOQ (PDF)</button>
           </div>
         </div>
       )}
@@ -1173,29 +1321,34 @@ export default function NewQuote() {
         </div>
       )}
 
-      {/* Step 7: Generate PDF Quote */}
+      {/* Step 7: Review quote */}
       {step === 7 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           <div className="card">
-            <h2 className="text-lg font-semibold mb-4">Quote summary</h2>
+            <h2 className="text-lg font-semibold mb-1">Your costing</h2>
+            <p className="text-xs text-gray-500 mb-4">For you only. The client's quote shows the scope of work and one total — never these lines or your mark-up.</p>
             <div className="text-sm space-y-2 mb-4">
-              <div className="flex justify-between"><span className="text-gray-500">Material Cost (incl. mark-up)</span><span>R {(materialCost + markupAmount).toFixed(2)}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Labour Cost</span><span>R {labourCost.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Materials (supplier rates)</span><span>R {materialCost.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Labour</span><span>R {labourCost.toFixed(2)}</span></div>
               <div className="flex justify-between"><span className="text-gray-500">Transport / Location Allowance</span><span>R {transport.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Mark-up ({markup}%)</span><span>R {markupAmount.toFixed(2)}</span></div>
+              <div className="flex justify-between border-t pt-2"><span className="text-gray-500">Quote total (excl. VAT)</span><span>R {markedUp.toFixed(2)}</span></div>
               <div className="flex justify-between"><span className="text-gray-500">VAT ({vatPercent}%)</span><span>R {vatAmount.toFixed(2)}</span></div>
               <div className="flex justify-between font-semibold text-base border-t pt-2 text-brand-green">
                 <span>Grand Total</span><span>R {grandTotal.toFixed(2)}</span>
               </div>
             </div>
-            <p className="text-xs text-gray-500 mb-3">
-              Your {markup}% mark-up (R {markupAmount.toFixed(2)}) is built into the material cost above — it is not shown as a separate line on the client's quote.
-            </p>
+            {unpricedCount > 0 && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+                {unpricedCount} material line{unpricedCount === 1 ? ' is' : 's are'} still at R 0.00 (no {supplierInfo?.name} price). Go back to Review Extracted Info to enter your own rate.
+              </p>
+            )}
             <p className="text-xs text-brand-blue bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-4">
               Generating this quote would deduct 1 credit from your account.
             </p>
             <div className="flex justify-between">
               <button className="btn-secondary" onClick={() => setStep(6)}>Back</button>
-              <button className="btn-primary" onClick={() => setShowPreview(true)}>Open PDF-Ready Quote</button>
+              <button className="btn-primary" onClick={() => setShowPreview(true)}>Open Quote Preview</button>
             </div>
           </div>
 
@@ -1219,38 +1372,32 @@ export default function NewQuote() {
                 <div className="text-right space-y-0.5">
                   <p>Reference: {reference}</p>
                   <p>Date: {new Date().toLocaleDateString()}</p>
-                  <p className="text-gray-400 mt-1.5">Quoted by</p>
+                  <p>Valid for 30 days</p>
+                  <p className="text-gray-400 mt-1.5">Prepared by</p>
                   <p className="font-semibold text-gray-700">{user?.company || 'Independent Contractor'}</p>
                   {user?.companyAddress && <p className="max-w-[180px]">{user.companyAddress}</p>}
                   {user?.email && <p>{user.email}</p>}
                 </div>
               </div>
-              <table className="w-full text-sm mb-4">
-                <thead>
-                  <tr className="text-left text-gray-500 border-b"><th className="py-2 font-medium">Description</th><th className="py-2 font-medium text-right">Amount (ZAR)</th></tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-gray-100"><td className="py-2">Material Cost</td><td className="py-2 text-right">R {(materialCost + markupAmount).toFixed(2)}</td></tr>
-                  <tr className="border-b border-gray-100"><td className="py-2">Labour Cost</td><td className="py-2 text-right">R {labourCost.toFixed(2)}</td></tr>
-                  <tr className="border-b border-gray-100"><td className="py-2">Transport / Location Allowance</td><td className="py-2 text-right">R {transport.toFixed(2)}</td></tr>
-                  <tr className="border-b border-gray-100"><td className="py-2">VAT ({vatPercent}%)</td><td className="py-2 text-right">R {vatAmount.toFixed(2)}</td></tr>
-                </tbody>
-              </table>
-              <p className="text-right text-lg font-bold text-brand-red mb-4">Grand Total: R {grandTotal.toFixed(2)}</p>
-
-              <h4 className="text-sm font-semibold mb-1">Assumptions</h4>
-              <ul className="text-xs text-gray-600 list-disc pl-4 mb-3 space-y-0.5">
-                <li>Quote based on uploaded plan and confirmed extracted quantities.</li>
-                <li>Pricing is calculated from the supplied Excel pricing data.</li>
-                <li>Final measurements must be confirmed before work starts.</li>
-              </ul>
-              <h4 className="text-sm font-semibold mb-1">Exclusions</h4>
-              <ul className="text-xs text-gray-600 list-disc pl-4 mb-5 space-y-0.5">
-                <li>Items not visible or not shown on the supplied plan are excluded.</li>
-                <li>Municipal approvals, engineering changes and abnormal site conditions excluded.</li>
-                <li>Professional fees (architect, engineer, council) not included unless stated.</li>
-              </ul>
-              <button className="btn-primary w-full" onClick={() => setStep(8)}>Next: Deposit (Optional)</button>
+              <h4 className="text-sm font-semibold border-b pb-1 mb-2">Scope of work</h4>
+              <div className="space-y-3 mb-4 max-h-80 overflow-y-auto pr-1">
+                {previewScope.map((sc, i) => (
+                  <div key={sc.trade}>
+                    <p className="text-sm font-semibold">{i + 1}. {sc.trade}</p>
+                    <p className="text-xs text-gray-600">{sc.summary}</p>
+                    {sc.includes.length > 0 && <p className="text-[11px] text-gray-400">Includes: {sc.includes.join(', ')}.</p>}
+                  </div>
+                ))}
+              </div>
+              <div className="border-t pt-3 text-sm space-y-1 mb-4">
+                <div className="flex justify-between"><span className="text-gray-600">Total for the work described (excl. VAT)</span><span>R {markedUp.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-600">VAT ({vatPercent}%)</span><span>R {vatAmount.toFixed(2)}</span></div>
+                <p className="flex justify-between text-lg font-bold text-brand-red pt-1"><span>Total quote (incl. VAT)</span><span>R {grandTotal.toFixed(2)}</span></p>
+              </div>
+              <p className="text-[11px] text-gray-400 mb-4">
+                The PDF also carries assumptions, exclusions, 30-day validity terms and a client acceptance block.
+              </p>
+              <button className="btn-primary w-full" onClick={() => setStep(8)}>Next: Deposit &amp; Download</button>
             </div>
           )}
         </div>
@@ -1331,9 +1478,25 @@ export default function NewQuote() {
             )}
           </div>
 
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold mb-1">What would you like to download?</h3>
+            <p className="text-xs text-gray-500 mb-3">
+              The quote is the client's scope of work with one total. The BOQ lists every material with its quantity and supplier rate. Your mark-up is on neither.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+              <button className="btn-primary" onClick={() => downloadFinal('quote')}>Quote</button>
+              <button className="btn-primary" onClick={() => downloadFinal('boq')}>BOQ</button>
+              <button className="btn-primary" onClick={() => downloadFinal('both')}>Both</button>
+            </div>
+            {downloadedMsg && (
+              <p className="text-xs text-brand-green bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-3">
+                {downloadedMsg} This quote is saved on your Quotes page.
+              </p>
+            )}
+          </div>
           <div className="flex justify-between">
             <button className="btn-secondary" onClick={() => setStep(7)}>Back</button>
-            <button className="btn-primary" onClick={generatePdf}>Download PDF Quote</button>
+            {savedQuoteId && <button className="btn-secondary" onClick={() => navigate('/quotes')}>Go to Quotes</button>}
           </div>
         </div>
       )}

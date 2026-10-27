@@ -124,7 +124,7 @@ function parseLegacyTemplate(workbook) {
 // "Unit Price excl. VAT (R)". Item codes are "<tab number>-<line number>" (e.g.
 // 01-02), the same codes the quote's plan take-off uses, so an uploaded list
 // replaces the built-in rates line for line. Blank-price rows are skipped.
-function parseSupplierWorkbook(workbook) {
+function parseSupplierWorkbook(workbook, slug) {
   const categories = []
   const flatItems = []
   workbook.SheetNames.forEach((sheetName) => {
@@ -154,7 +154,7 @@ function parseSupplierWorkbook(workbook) {
       if (!Number.isFinite(price) && inclCol >= 0 && Number.isFinite(parseFloat(row[inclCol]))) price = parseFloat(row[inclCol]) / (1 + vat)
       if (!Number.isFinite(price)) continue
       items.push({
-        code: `${num}-${String(line).padStart(2, '0')}`,
+        code: slug === 'cosave-powerbuild' ? `CP-${num}-${String(line).padStart(3, '0')}` : `${num}-${String(line).padStart(2, '0')}`,
         description: String(row[descCol] || '').trim(),
         quantity: null,
         unit: unitCol >= 0 ? String(row[unitCol] || '').trim() : '',
@@ -172,9 +172,9 @@ function parseSupplierWorkbook(workbook) {
   return flatItems.length ? { categories, flatItems, totalItems: flatItems.length } : null
 }
 
-function parseWorkbook(arrayBuffer) {
+function parseWorkbook(arrayBuffer, slug) {
   const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-  return parseSupplierWorkbook(workbook) || parseStandardTemplate(workbook) || parseLegacyTemplate(workbook)
+  return parseSupplierWorkbook(workbook, slug) || parseStandardTemplate(workbook) || parseLegacyTemplate(workbook)
 }
 
 export default function PriceLists() {
@@ -216,7 +216,7 @@ export default function PriceLists() {
     const reader = new FileReader()
     reader.onload = () => {
       try {
-        const parsed = parseWorkbook(reader.result)
+        const parsed = parseWorkbook(reader.result, supplier.slug)
         if (parsed.totalItems === 0) {
           setError('No pricing rows found — check the file is GNA\u2019s standard Supplier Price Request template with a "Supplier SKU / Code" and "PRICE EX VAT" column filled in.')
           return

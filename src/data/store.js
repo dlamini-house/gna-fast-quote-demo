@@ -64,6 +64,8 @@ function loadState() {
     plan: saved.plan || null,
     credits: saved.credits ?? 0,
     quotes: saved.quotes || [],
+    // Counts every quote ever created, so deleting a saved quote doesn't hand back a trial quote.
+    quotesCreated: saved.quotesCreated ?? (saved.quotes || []).length,
     applications,
     adminUsers,
     // A schema reseed also clears whoever was "signed in" under the old
@@ -104,7 +106,7 @@ export function trialStatus(s) {
   const start = new Date(s.trialStartedAt)
   const daysUsed = Math.floor((Date.now() - start.getTime()) / (1000 * 60 * 60 * 24))
   const daysLeft = Math.max(0, TRIAL_DAYS - daysUsed)
-  const quotesLeft = Math.max(0, TRIAL_QUOTES - s.quotes.length)
+  const quotesLeft = Math.max(0, TRIAL_QUOTES - Math.max(s.quotesCreated || 0, s.quotes.length))
   const onTrial = !s.plan
   const trialExpired = onTrial && (daysLeft === 0 || quotesLeft === 0)
   return { onTrial, daysLeft, quotesLeft, trialExpired }
