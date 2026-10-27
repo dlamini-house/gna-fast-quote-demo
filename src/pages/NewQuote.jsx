@@ -16,7 +16,7 @@ import { SUPPLIERS } from '../data/suppliers'
 import { getDefaultPriceList, cosaveRatesFromItems, AVERAGE_SLUG } from '../data/supplierPriceLists'
 import { DEMO_PLAN, buildTakeoff } from '../data/demoPlan'
 import { createQuotePdf, quotePdfFileName, createBoqPdf, boqPdfFileName } from '../data/quotePdf'
-import { buildScope } from '../data/quoteScope'
+import { buildScope, buildQuoteLines } from '../data/quoteScope'
 
 const STEPS = [
   'Select Supplier',
@@ -336,30 +336,31 @@ export default function NewQuote() {
 
   const quotedBy = { company: user?.company, address: user?.companyAddress, email: user?.email }
 
-  // Client quote: scope of work + ONE total. No rates, no per-trade prices, no mark-up.
+  // Client quote: one priced line per piece of work. The mark-up is spread across the
+  // lines, never shown on its own, and no supplier rates or quantities appear.
+  function scopeInputs() {
+    return { materials, extraMaterials, consumableLines, labourLines, labourItemLines, customLabourLines, supervisionDays, fixedLines, labourTotal: labourCost, transport }
+  }
+
   function buildQuoteData() {
+    const scope = buildScope(scopeInputs())
+    const validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     return {
       reference,
+      quoteNumber: reference,
       dateLabel: new Date().toLocaleDateString(),
+      validUntilLabel: validUntil.toLocaleDateString(),
       projectName,
       clientName,
       siteAddress,
-      scope: buildScope({
-        materials,
-        extraMaterials,
-        consumableLines,
-        labourLines,
-        labourItemLines,
-        customLabourLines,
-        supervisionDays,
-        fixedLines
-      }),
+      lines: buildQuoteLines(scope, subtotal, markedUp),
       subtotal: markedUp,
+      vatPercent: parseFloat(vatPercent) || 0,
       vatLabel: `VAT (${vatPercent}%)`,
       vatAmount,
       grandTotal,
       deposit: depositInfo,
-      quotedBy
+      quotedBy: { ...quotedBy, regNo: user?.companyReg, vatNo: user?.vatNumber, phone: user?.phone }
     }
   }
 
@@ -401,7 +402,7 @@ export default function NewQuote() {
     doc.save(boqPdfFileName(data))
   }
 
-  const previewScope = buildScope({ materials, extraMaterials, consumableLines, labourLines, labourItemLines, customLabourLines, supervisionDays, fixedLines })
+  const previewLines = buildQuoteLines(buildScope(scopeInputs()), subtotal, markedUp)
   const [savedQuoteId, setSavedQuoteId] = useState(null)
   const [downloadedMsg, setDownloadedMsg] = useState('')
 
@@ -1326,7 +1327,7 @@ export default function NewQuote() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           <div className="card">
             <h2 className="text-lg font-semibold mb-1">Your costing</h2>
-            <p className="text-xs text-gray-500 mb-4">For you only. The client's quote shows the scope of work and one total — never these lines or your mark-up.</p>
+            <p className="text-xs text-gray-500 mb-4">For you only. The client's quote shows each piece of work with its price, with your mark-up built into those prices — never as its own line.</p>
             <div className="text-sm space-y-2 mb-4">
               <div className="flex justify-between"><span className="text-gray-500">Materials (supplier rates)</span><span>R {materialCost.toFixed(2)}</span></div>
               <div className="flex justify-between"><span className="text-gray-500">Labour</span><span>R {labourCost.toFixed(2)}</span></div>
@@ -1379,23 +1380,30 @@ export default function NewQuote() {
                   {user?.email && <p>{user.email}</p>}
                 </div>
               </div>
-              <h4 className="text-sm font-semibold border-b pb-1 mb-2">Scope of work</h4>
-              <div className="space-y-3 mb-4 max-h-80 overflow-y-auto pr-1">
-                {previewScope.map((sc, i) => (
-                  <div key={sc.trade}>
-                    <p className="text-sm font-semibold">{i + 1}. {sc.trade}</p>
-                    <p className="text-xs text-gray-600">{sc.summary}</p>
-                    {sc.includes.length > 0 && <p className="text-[11px] text-gray-400">Includes: {sc.includes.join(', ')}.</p>}
+              <div className="bg-black text-white text-xs font-semibold grid grid-cols-12 px-2 py-1">
+                <span className="col-span-1">Item</span>
+                <span className="col-span-8">Description</span>
+                <span className="col-span-3 text-right">Line Total</span>
+              </div>
+              <div className="mb-3 max-h-80 overflow-y-auto">
+                {previewLines.map((l, i) => (
+                  <div key={l.title} className={`grid grid-cols-12 px-2 py-1.5 text-sm ${i % 2 ? '' : 'bg-gray-100'}`}>
+                    <span className="col-span-1 text-gray-500">{i + 1}</span>
+                    <span className="col-span-8">
+                      <span className="font-medium">{l.title}</span>
+                      <span className="block text-[11px] text-gray-500">{l.summary}</span>
+                    </span>
+                    <span className="col-span-3 text-right">R {l.amount.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
-              <div className="border-t pt-3 text-sm space-y-1 mb-4">
-                <div className="flex justify-between"><span className="text-gray-600">Total for the work described (excl. VAT)</span><span>R {markedUp.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-gray-600">VAT ({vatPercent}%)</span><span>R {vatAmount.toFixed(2)}</span></div>
-                <p className="flex justify-between text-lg font-bold text-brand-red pt-1"><span>Total quote (incl. VAT)</span><span>R {grandTotal.toFixed(2)}</span></p>
+              <div className="ml-auto w-64 text-sm space-y-1 mb-4">
+                <div className="flex justify-between"><span className="text-gray-600">Subtotal excl. VAT</span><span>R {markedUp.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-600">Tax/VAT ({vatPercent}%)</span><span>R {vatAmount.toFixed(2)}</span></div>
+                <p className="flex justify-between bg-black text-white font-bold px-2 py-1"><span>Total</span><span>R {grandTotal.toFixed(2)}</span></p>
               </div>
               <p className="text-[11px] text-gray-400 mb-4">
-                The PDF also carries assumptions, exclusions, 30-day validity terms and a client acceptance block.
+                The PDF follows your quotation template: company details, customer, notes and terms, and a signature block.
               </p>
               <button className="btn-primary w-full" onClick={() => setStep(8)}>Next: Deposit &amp; Download</button>
             </div>
@@ -1481,7 +1489,7 @@ export default function NewQuote() {
           <div className="border-t pt-4">
             <h3 className="text-sm font-semibold mb-1">What would you like to download?</h3>
             <p className="text-xs text-gray-500 mb-3">
-              The quote is the client's scope of work with one total. The BOQ lists every material with its quantity and supplier rate. Your mark-up is on neither.
+              The quote lists each piece of work with its price. The BOQ lists every material with its quantity and supplier rate. Your mark-up is not shown as a line on either.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
               <button className="btn-primary" onClick={() => downloadFinal('quote')}>Quote</button>

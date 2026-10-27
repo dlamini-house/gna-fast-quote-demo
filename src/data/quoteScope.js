@@ -14,6 +14,7 @@ const GROUP_SCOPE = {
   'External Works': 'Supply and install gates and external works as shown on the plan.'
 }
 
+const cost = (items) => items.reduce((sum, m) => sum + (parseFloat(m.qty) || 0) * (parseFloat(m.rate) || 0), 0)
 const plain = (s) => String(s || '').replace(/\s+/g, ' ').trim()
 
 function top(items, n) {
@@ -30,7 +31,7 @@ function top(items, n) {
   return shown
 }
 
-export function buildScope({ materials = [], extraMaterials = [], consumableLines = [], labourLines = [], labourItemLines = [], customLabourLines = [], supervisionDays = 0, fixedLines = [] }) {
+export function buildScope({ materials = [], extraMaterials = [], consumableLines = [], labourLines = [], labourItemLines = [], customLabourLines = [], supervisionDays = 0, fixedLines = [], labourTotal = 0, transport = 0 }) {
   const scope = []
   const groups = []
   materials.forEach((m) => {
@@ -43,7 +44,8 @@ export function buildScope({ materials = [], extraMaterials = [], consumableLine
     scope.push({
       trade: g.name,
       summary: GROUP_SCOPE[g.name] || `Supply and install ${g.name.toLowerCase()} as shown on the plan.`,
-      includes: top(g.items, 6)
+      includes: top(g.items, 6),
+      cost: cost(g.items)
     })
   })
 
@@ -52,14 +54,16 @@ export function buildScope({ materials = [], extraMaterials = [], consumableLine
     scope.push({
       trade: 'Additional items',
       summary: 'Additional items agreed for this project that are not shown on the plan.',
-      includes: top(extras, 8)
+      includes: top(extras, 8),
+      cost: cost(extras)
     })
   }
   if (consumableLines.length) {
     scope.push({
       trade: 'Fixings & consumables',
       summary: 'Fixings, sealants, adhesives and other consumables needed to complete the work.',
-      includes: []
+      includes: [],
+      cost: cost(consumableLines)
     })
   }
 
@@ -73,9 +77,31 @@ export function buildScope({ materials = [], extraMaterials = [], consumableLine
   if (labour.length) {
     scope.push({
       trade: 'Labour & site services',
-      summary: 'All labour, supervision and site services needed to complete the work above.',
-      includes: [...new Set(labour)]
+      summary: 'All labour, supervision, site services and transport needed to complete the work above.',
+      includes: [...new Set(labour)],
+      cost: (parseFloat(labourTotal) || 0) + (parseFloat(transport) || 0)
     })
   }
   return scope
+}
+
+// Quote lines for the client: one priced line per piece of work. The contractor's
+// mark-up is spread across every line (never shown on its own), so the lines add up
+// exactly to the quote total excl. VAT.
+export function buildQuoteLines(scope, subtotalBeforeMarkup, quoteTotalExVat) {
+  const base = scope.reduce((sum, s) => sum + (s.cost || 0), 0)
+  const factor = base > 0 ? quoteTotalExVat / base : 1
+  const lines = scope.map((s) => ({
+    title: s.trade === 'Labour & site services' ? 'Labour for contract' : s.trade,
+    summary: s.summary,
+    includes: s.includes,
+    amount: Math.round((s.cost || 0) * factor * 100) / 100
+  }))
+  // Put any cent rounding on the largest line so the lines sum exactly to the total.
+  const diff = Math.round((Math.round(quoteTotalExVat * 100) - lines.reduce((sum, l) => sum + Math.round(l.amount * 100), 0))) / 100
+  if (lines.length && Math.abs(diff) > 0) {
+    const big = lines.reduce((bi, l, i) => (l.amount > lines[bi].amount ? i : bi), 0)
+    lines[big].amount = Math.round((lines[big].amount + diff) * 100) / 100
+  }
+  return lines
 }

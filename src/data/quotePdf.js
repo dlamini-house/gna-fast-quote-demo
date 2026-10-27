@@ -144,8 +144,271 @@ function ensure(doc, y, need, redrawHeader) {
   return redrawHeader ? redrawHeader() : 20
 }
 
-// ------------------------------- QUOTE ------------------------------------
+// -------------------- QUOTATION (GnA quote template) ----------------------
+// Follows the GnA Quote master spreadsheet: company block, "Quotation" title with
+// date / valid until / quote number / reference, Customer + Description boxes, a priced
+// line per piece of work, subtotal / VAT / total, notes and terms, signature block.
+const NAVY = [0, 66, 105]
+const BLACK = [0, 0, 0]
+
+async function createTemplateQuotePdf(data, logoDataUrl) {
+  const logo = await loadLogo(logoDataUrl)
+  const doc = new jsPDF()
+  const q = data.quotedBy || {}
+  const L = 14
+  const R = 196
+  let y = 10
+
+  // Logos: contractor's own (left) and GNA (right).
+  let logoBottom = y
+  if (logo) {
+    const ratio = Math.min(46 / logo.width, 24 / logo.height)
+    const w = logo.width * ratio
+    const h = logo.height * ratio
+    doc.addImage(logo.dataUrl, 'PNG', L, y, w, h)
+    logoBottom = y + h
+  }
+  doc.addImage(LOGO_BASE64, 'JPEG', R - 34, y, 34, 18)
+  y = Math.max(logoBottom, y + 18) + 7
+
+  // Company block (left) and title / dates (right)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.setTextColor(...BLACK)
+  doc.text(q.company || 'Independent Contractor', L, y)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  let ly = y + 6
+  const info = []
+  if (q.address) info.push(['Address:', q.address])
+  if (q.phone) info.push(['Telephone:', q.phone])
+  if (q.email) info.push(['Email:', q.email])
+  if (q.vatNo) info.push(['VAT No:', q.vatNo])
+  if (q.regNo) info.push(['Reg no:', q.regNo])
+  info.forEach(([k, v]) => {
+    doc.setFont('helvetica', 'bold')
+    doc.text(k, L, ly)
+    doc.setFont('helvetica', 'normal')
+    const lines = doc.splitTextToSize(String(v), 95)
+    lines.forEach((t, i) => doc.text(t, L + 24, ly + i * 4.4))
+    ly += Math.max(lines.length, 1) * 4.4 + 1.4
+  })
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(24)
+  doc.setTextColor(...NAVY)
+  doc.text('Quotation', R, y + 4, { align: 'right' })
+  doc.setFontSize(9)
+  doc.setTextColor(...BLACK)
+  let ry = y + 14
+  ;[
+    ['Date:', data.dateLabel],
+    ['Valid Until:', data.validUntilLabel || ''],
+    ['Quote Number:', data.quoteNumber || data.reference],
+    ['Reference:', data.reference]
+  ].forEach(([k, v]) => {
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(90, 90, 90)
+    doc.text(k, 140, ry)
+    doc.setTextColor(...BLACK)
+    doc.text(String(v), R, ry, { align: 'right' })
+    doc.setDrawColor(190, 190, 190)
+    doc.setLineWidth(0.2)
+    doc.line(140, ry + 1.6, R, ry + 1.6)
+    ry += 6.5
+  })
+
+  y = Math.max(ly, ry) + 4
+
+  // Customer / Description boxes
+  const barH = 6
+  doc.setFillColor(...BLACK)
+  doc.rect(L, y, 92, barH, 'F')
+  doc.rect(108, y, R - 108, barH, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.setTextColor(255, 255, 255)
+  doc.text('Customer:', L + 2, y + 4.2)
+  doc.text('Description', 110, y + 4.2)
+  y += barH
+  const cust = [data.clientName || '-']
+  if (data.siteAddress) doc.splitTextToSize(data.siteAddress, 86).forEach((t) => cust.push(t))
+  const descLines = doc.splitTextToSize(data.projectName || 'House construction', R - 112)
+  const boxH = Math.max(cust.length, descLines.length) * 4.8 + 4
+  doc.setDrawColor(...BLACK)
+  doc.setLineWidth(0.3)
+  doc.rect(L, y, 92, boxH)
+  doc.rect(108, y, R - 108, boxH)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(...BLACK)
+  cust.forEach((t, i) => doc.text(t, L + 2, y + 5 + i * 4.8))
+  descLines.forEach((t, i) => doc.text(t, 110, y + 5 + i * 4.8))
+  y += boxH + 6
+
+  // Table
+  const C = { item: L + 2, desc: L + 14, qty: 128, unit: 150, vat: 160, total: R - 1 }
+  const drawTableHead = () => {
+    doc.setFillColor(...BLACK)
+    doc.rect(L, y, R - L, 6, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(255, 255, 255)
+    doc.text('Item', C.item, y + 4.2)
+    doc.text('Description', C.desc, y + 4.2)
+    doc.text('Qty', C.qty, y + 4.2, { align: 'right' })
+    doc.text('Unit Price', C.unit, y + 4.2, { align: 'right' })
+    doc.text('VAT Rate', C.vat + 12, y + 4.2, { align: 'right' })
+    doc.text('Line Total', C.total, y + 4.2, { align: 'right' })
+    y += 6
+  }
+  drawTableHead()
+  const vatPct = `${Number(data.vatPercent ?? 15)}%`
+  data.lines.forEach((ln, i) => {
+    const sum = doc.splitTextToSize(ln.summary || '', 100)
+    const inc = (ln.includes || []).length ? doc.splitTextToSize(`Includes: ${ln.includes.join(', ')}.`, 100) : []
+    const h = 5.2 + (sum.length + inc.length) * 3.9 + 2.5
+    if (y + h > PAGE_BOTTOM - 8) {
+      doc.addPage()
+      y = 16
+      drawTableHead()
+    }
+    if (i % 2 === 0) {
+      doc.setFillColor(232, 232, 232)
+      doc.rect(L, y, R - L, h, 'F')
+    }
+    doc.setTextColor(...BLACK)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.text(String(i + 1), C.item, y + 4.2)
+    doc.setFont('helvetica', 'bold')
+    doc.text(ln.title, C.desc, y + 4.2)
+    doc.setFont('helvetica', 'normal')
+    doc.text('1', C.qty, y + 4.2, { align: 'right' })
+    doc.text(money(ln.amount), C.unit, y + 4.2, { align: 'right' })
+    doc.text(vatPct, C.vat + 12, y + 4.2, { align: 'right' })
+    doc.text(money(ln.amount), C.total, y + 4.2, { align: 'right' })
+    doc.setFontSize(7.8)
+    doc.setTextColor(90, 90, 90)
+    let ty = y + 4.2
+    sum.forEach((t) => {
+      ty += 3.9
+      doc.text(t, C.desc, ty)
+    })
+    inc.forEach((t) => {
+      ty += 3.9
+      doc.setTextColor(125, 125, 125)
+      doc.text(t, C.desc, ty)
+    })
+    y += h
+  })
+  doc.setDrawColor(...BLACK)
+  doc.setLineWidth(0.3)
+  doc.line(L, y, R, y)
+  y += 6
+
+  // Totals
+  if (y + 40 > PAGE_BOTTOM) {
+    doc.addPage()
+    y = 20
+  }
+  doc.setFontSize(9)
+  doc.setTextColor(...BLACK)
+  doc.text('Subtotal excl. VAT', 150, y, { align: 'right' })
+  doc.text(money(data.subtotal), R, y, { align: 'right' })
+  y += 6
+  doc.text(`Tax/VAT (${Number(data.vatPercent ?? 15)}%)`, 150, y, { align: 'right' })
+  doc.text(money(data.vatAmount), R, y, { align: 'right' })
+  y += 3
+  doc.setFillColor(...BLACK)
+  doc.rect(120, y, R - 120, 7, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10.5)
+  doc.setTextColor(255, 255, 255)
+  doc.text('Total', 123, y + 5)
+  doc.text(money(data.grandTotal), R - 2, y + 5, { align: 'right' })
+  y += 7
+  if (data.deposit) {
+    y += 6
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(...BLACK)
+    const label = data.deposit.percent != null ? `Deposit required (${data.deposit.percent}%)` : 'Deposit required'
+    doc.text(label, 150, y, { align: 'right' })
+    doc.text(money(data.deposit.amount), R, y, { align: 'right' })
+    y += 5.5
+    doc.text('Balance due after deposit', 150, y, { align: 'right' })
+    doc.text(money(data.deposit.balance), R, y, { align: 'right' })
+    y += 2
+  }
+  y += 8
+
+  // Special notes / terms
+  const notes = [
+    'Once you accept the quote bank details will be provided.',
+    'Above information is not an invoice and only an estimate of services/goods described above.',
+    'Payment will be collected prior to provision of services/goods described in this quote.',
+    'This quote is valid for 30 days from the date above.',
+    'Based on the plan supplied; final measurements must be confirmed on site before work starts.',
+    'Items not shown on the plan, municipal approvals, engineering changes, abnormal site conditions and professional fees are excluded unless stated.',
+    'Variations to the scope will be quoted and agreed in writing before they are carried out.'
+  ]
+  const noteLines = notes.flatMap((n) => doc.splitTextToSize(`•  ${n}`, 176))
+  const need = 6 + noteLines.length * 4.4 + 4
+  if (y + need > PAGE_BOTTOM - 40) {
+    doc.addPage()
+    y = 20
+  }
+  doc.setFillColor(...BLACK)
+  doc.rect(L, y, R - L, 6, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.setTextColor(255, 255, 255)
+  doc.text("Special Notes and Instructions - T'S & C'S", L + 2, y + 4.2)
+  y += 6
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(...BLACK)
+  const notesTop = y
+  noteLines.forEach((t) => {
+    y += 4.4
+    doc.text(t, L + 2, y)
+  })
+  y += 3
+  doc.setDrawColor(...BLACK)
+  doc.rect(L, notesTop, R - L, y - notesTop)
+  y += 10
+
+  // Acceptance
+  if (y + 38 > PAGE_BOTTOM) {
+    doc.addPage()
+    y = 20
+  }
+  doc.setFontSize(9)
+  doc.setTextColor(...BLACK)
+  doc.text('Please confirm your acceptance of this quote by signing this document', L, y)
+  ;['Signature', 'Print Name', 'Date'].forEach((k, i) => {
+    const yy = y + i * 9
+    doc.setTextColor(90, 90, 90)
+    doc.text(k, 120, yy)
+    doc.setDrawColor(150, 150, 150)
+    doc.setLineWidth(0.3)
+    doc.line(140, yy + 1.2, R, yy + 1.2)
+  })
+  y += 32
+  doc.setTextColor(...BLACK)
+  doc.text(`If you have any questions concerning this quote, contact us${q.email ? ` at ${q.email}` : ''}${q.phone ? ` or ${q.phone}` : ''}.`, 105, y, { align: 'center' })
+  y += 8
+  doc.setFont('helvetica', 'bold')
+  doc.text('Thank you for your business!', 105, y, { align: 'center' })
+
+  drawFooter(doc)
+  return doc
+}
+
+// ------------------------------- QUOTE (scope layout, older saves) --------
 export async function createQuotePdf(data, logoDataUrl) {
+  if (data.lines) return createTemplateQuotePdf(data, logoDataUrl)
   if (!data.scope) return createLegacyQuotePdf(data, logoDataUrl)
   const logo = await loadLogo(logoDataUrl)
   const doc = new jsPDF()
