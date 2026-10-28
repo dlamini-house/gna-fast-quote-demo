@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { TRIAL_DAYS, TRIAL_QUOTES } from './mockData'
+import { AV_DESIGNS_LOGO, BUILDCORE_LOGO } from './seedLogos'
 
 const STORAGE_KEY = 'gna-fast-quote-demo-state'
 
@@ -17,11 +18,11 @@ const SEED_ADMIN_PASSWORD = 'GnaAdmin2026'
 // and logo, so every signed-in contractor sees and quotes with only their own
 // documents and branding.
 const DEFAULT_APPLICATIONS = [
-  { id: 1, company: 'BuildCore (Pty) Ltd', contact: 'John Mkhize', email: 'john@buildcore.co.za', password: SEED_CONTRACTOR_PASSWORD, companyReg: '2018/345678/07', companyAddress: '12 Innovation Drive, Waterfall City, Midrand, 1685', nhbrc: '30001234', registered: '12 Aug 2026', status: 'pending', certificateDataUrl: null, logoDataUrl: null, logoFileName: null, logoType: null },
+  { id: 1, company: 'BuildCore (Pty) Ltd', contact: 'John Mkhize', email: 'john@buildcore.co.za', password: SEED_CONTRACTOR_PASSWORD, companyReg: '2018/345678/07', companyAddress: '12 Innovation Drive, Waterfall City, Midrand, 1685', vatNumber: '4123456789', nhbrcExpiry: '30/06/2027', nhbrc: '30001234', registered: '12 Aug 2026', status: 'pending', certificateDataUrl: null, logoDataUrl: BUILDCORE_LOGO, logoFileName: 'buildcore-logo.png', logoType: 'image/png' },
   { id: 2, company: 'SA Structure (Pty) Ltd', contact: 'Sarah Naidoo', email: 'sarah@sa-structure.co.za', password: SEED_CONTRACTOR_PASSWORD, companyReg: '2016/221190/07', companyAddress: '4 Concrete Ave, Germiston, 1401', nhbrc: '30004567', registered: '11 Aug 2026', status: 'pending', certificateDataUrl: null, logoDataUrl: null, logoFileName: null, logoType: null },
   { id: 3, company: 'Metro Plans (Pty) Ltd', contact: 'Michael Botha', email: 'michael@metroplans.co.za', password: SEED_CONTRACTOR_PASSWORD, companyReg: '2019/778812/07', companyAddress: '77 Blueprint Rd, Sandton, 2196', nhbrc: '30007890', registered: '10 Aug 2026', status: 'pending', certificateDataUrl: null, logoDataUrl: null, logoFileName: null, logoType: null },
   { id: 4, company: 'DCD Engineering', contact: 'David Pillay', email: 'david@dcdeng.co.za', password: SEED_CONTRACTOR_PASSWORD, companyReg: '2015/119004/07', companyAddress: '9 Girder St, Boksburg, 1459', nhbrc: '30003321', registered: '05 Aug 2026', status: 'verified', certificateDataUrl: null, logoDataUrl: null, logoFileName: null, logoType: null },
-  { id: 5, company: 'AV Designs (Pty) Ltd', contact: 'Anel van der Merwe', email: 'anel@avdesigns.co.za', password: SEED_CONTRACTOR_PASSWORD, companyReg: '2020/556231/07', companyAddress: '21 Facade Way, Centurion, 0157', nhbrc: '30006654', registered: '02 Aug 2026', status: 'verified', certificateDataUrl: null, logoDataUrl: null, logoFileName: null, logoType: null },
+  { id: 5, company: 'AV Designs (Pty) Ltd', contact: 'Anel van der Merwe', email: 'anel@avdesigns.co.za', password: SEED_CONTRACTOR_PASSWORD, companyReg: '2020/556231/07', companyAddress: '21 Facade Way, Centurion, 0157', vatNumber: '4987654321', nhbrcExpiry: '31/03/2027', nhbrc: '30006654', registered: '02 Aug 2026', status: 'verified', certificateDataUrl: null, logoDataUrl: AV_DESIGNS_LOGO, logoFileName: 'av-designs-logo.png', logoType: 'image/png' },
   { id: 6, company: 'Mkonto Builders', contact: 'Thabo Mkonto', email: 'thabo@mkontobuild.co.za', password: SEED_CONTRACTOR_PASSWORD, companyReg: '2017/990213/07', companyAddress: '3 Site Camp Rd, Soweto, 1818', nhbrc: '30011456', registered: '03 Sep 2026', status: 'rejected', reason: 'NHBRC certificate expired 14 Jun 2026 — applicant must upload a current certificate to reapply.', certificateDataUrl: null, logoDataUrl: null, logoFileName: null, logoType: null },
   { id: 7, company: 'QuickStruct CC', contact: 'Sipho Zulu', email: 'sipho@quickstruct.co.za', password: SEED_CONTRACTOR_PASSWORD, companyReg: '2014/665521/23', companyAddress: '58 Rebar St, Vanderbijlpark, 1911', nhbrc: '30012980', registered: '29 Aug 2026', status: 'rejected', reason: 'Certificate details did not match the registered company name.', certificateDataUrl: null, logoDataUrl: null, logoFileName: null, logoType: null }
 ]
@@ -44,7 +45,7 @@ export { SEED_CONTRACTOR_PASSWORD, SEED_ADMIN_PASSWORD }
 // still correct, so a browser that had passed through an in-between version
 // could get stuck permanently "looking" current while holding a stale or
 // blank password.
-const SCHEMA_VERSION = 2
+const SCHEMA_VERSION = 3
 
 function loadState() {
   let saved = {}

@@ -11,6 +11,10 @@ const GROUP_SCOPE = {
   Plumbing: 'Supply and install water supply, waste and soil drainage, sanitary fixtures and the geyser installation.',
   Plastering: 'Supply and apply plaster to internal and external walls.',
   Painting: 'Supply and apply primer and paint to walls and ceilings.',
+  Stairs: 'Supply and cast the reinforced-concrete staircase between the floors, with nosings and a stainless-steel balustrade.',
+  'Floors & Screed': 'Supply and lay the damp-proof membrane and cement screed over the ground-floor slab.',
+  Tiling: 'Supply and lay floor and wall tiles to wet and service areas, including adhesive, grout and waterproofing.',
+  Electrical: 'Supply and install the complete electrical installation: distribution board, wiring, points, lighting, extractor fans and solar connection.',
   'External Works': 'Supply and install gates and external works as shown on the plan.'
 }
 

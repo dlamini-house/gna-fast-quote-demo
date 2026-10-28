@@ -15,7 +15,7 @@ import { db } from '../data/db'
 import { SUPPLIERS } from '../data/suppliers'
 import { getDefaultPriceList, cosaveRatesFromItems, AVERAGE_SLUG } from '../data/supplierPriceLists'
 import { DEMO_PLAN, buildTakeoff } from '../data/demoPlan'
-import { createQuotePdf, quotePdfFileName, createBoqPdf, boqPdfFileName } from '../data/quotePdf'
+import { createQuotePdf, quotePdfFileName, createBoqPdf, boqPdfFileName, BOQ_DISCLAIMER } from '../data/quotePdf'
 import { buildScope, buildQuoteLines } from '../data/quoteScope'
 
 const STEPS = [
@@ -54,6 +54,16 @@ function categoryLabel(name) {
   return String(name).replace(/^\d+\s+/, '')
 }
 
+// "<Supplier> Estimate" (or "Average Price Estimate"): prices come from supplier lists but are only an estimate.
+function EstimateNotice({ label, className = '' }) {
+  return (
+    <div className={`border border-amber-300 bg-amber-50 rounded-lg px-3 py-2 ${className}`}>
+      <p className="text-sm font-semibold text-amber-800">{label}</p>
+      <p className="text-xs text-amber-800">{BOQ_DISCLAIMER}</p>
+    </div>
+  )
+}
+
 function unitLabel(unitId) {
   return UNIT_OPTIONS.find((u) => u.id === unitId)?.label || unitId
 }
@@ -67,6 +77,7 @@ export default function NewQuote() {
   // Step 0: which supplier's price list this quote's materials come from
   const [supplier, setSupplier] = useState(null)
   const supplierInfo = supplier === AVERAGE_SLUG ? AVERAGE_OPTION : SUPPLIERS.find((s) => s.slug === supplier) || null
+  const estimateLabel = !supplierInfo || supplier === AVERAGE_SLUG ? 'Average Price Estimate' : `${supplierInfo.name} Estimate`
 
   // Step 1
   const [projectName, setProjectName] = useState('')
@@ -253,6 +264,7 @@ export default function NewQuote() {
       setTakeoff(result)
       setMaterials(withPriceListRates(result.lines.map((m) => ({ ...m }))))
       setLabourBasis(result.labourBasis)
+      setLabourItemQtys((q) => ({ ...Object.fromEntries(Object.entries(result.labourItems || {}).map(([k, v]) => [k, String(v)])), ...q }))
       // Pre-fill project details from the title block of the plan
       setProjectName((v) => v || `${DEMO_PLAN.title} – Stand ${DEMO_PLAN.stand}`)
       setClientName((v) => v || DEMO_PLAN.owner)
@@ -390,6 +402,7 @@ export default function NewQuote() {
       clientName,
       siteAddress,
       supplierName: supplierInfo?.name || '',
+      estimateLabel,
       groups,
       total: materialCost,
       quotedBy
@@ -698,6 +711,7 @@ export default function NewQuote() {
                 </>
               )}
             </p>
+            <EstimateNotice label={estimateLabel} className="mb-3" />
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -1001,6 +1015,7 @@ export default function NewQuote() {
               </div>
             )}
 
+            <EstimateNotice label={estimateLabel} className="mt-4" />
             <div className="flex justify-between mt-6">
               <button className="btn-secondary" onClick={() => setStep(3)}>Back</button>
               <div className="flex gap-2">
@@ -1056,7 +1071,8 @@ export default function NewQuote() {
           </div>
 
           <div className="card">
-            <h2 className="text-lg font-semibold mb-4">Mapped material items</h2>
+            <h2 className="text-lg font-semibold mb-3">Mapped material items</h2>
+            <EstimateNotice label={estimateLabel} className="mb-3" />
             <div className="overflow-y-auto max-h-72">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-white">
@@ -1487,7 +1503,8 @@ export default function NewQuote() {
           </div>
 
           <div className="border-t pt-4">
-            <h3 className="text-sm font-semibold mb-1">What would you like to download?</h3>
+            <h3 className="text-sm font-semibold mb-2">What would you like to download?</h3>
+            <EstimateNotice label={estimateLabel} className="mb-3" />
             <p className="text-xs text-gray-500 mb-3">
               The quote lists each piece of work with its price. The BOQ lists every material with its quantity and supplier rate. Your mark-up is not shown as a line on either.
             </p>

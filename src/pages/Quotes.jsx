@@ -82,6 +82,9 @@ export default function Quotes() {
                   ))}
               </tbody>
             </table>
+            <p className="mt-4 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              BOQs are estimates: rates come from the supplier price list you chose (or the average of all six) and prices may vary.
+            </p>
           </div>
         )}
       </div>

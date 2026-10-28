@@ -597,12 +597,39 @@ export function quotePdfFileName(data) {
 }
 
 // -------------------------------- BOQ -------------------------------------
+export const BOQ_DISCLAIMER =
+  'Rates come from supplier price lists but this is an estimate only. Actual prices may vary at the time of purchase.'
+
+export function boqEstimateLabel(data) {
+  if (data.estimateLabel) return data.estimateLabel
+  const name = data.supplierName || ''
+  return !name || /average/i.test(name) ? 'Average Price Estimate' : `${name} Estimate`
+}
+
 export async function createBoqPdf(data, logoDataUrl) {
   const logo = await loadLogo(logoDataUrl)
   const doc = new jsPDF()
   const q = data.quotedBy || {}
   const headerBottom = drawHeader(doc, logo, q.company)
-  let y = drawInfo(doc, headerBottom, 'BILL OF QUANTITIES', data, [`Supplier: ${data.supplierName || '-'}`])
+  let y = drawInfo(doc, headerBottom, 'BILL OF QUANTITIES', data)
+
+  // Estimate banner: "<Supplier> Estimate" (or "Average Price Estimate") and the price-variation note.
+  const label = boqEstimateLabel(data)
+  const noteLines = doc.splitTextToSize(BOQ_DISCLAIMER, 170)
+  const boxH = 10 + noteLines.length * 4.4
+  doc.setFillColor(255, 244, 214)
+  doc.setDrawColor(230, 170, 40)
+  doc.setLineWidth(0.4)
+  doc.rect(14, y - 4, 182, boxH, 'FD')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(150, 90, 0)
+  doc.text(label, 18, y + 2)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(110, 80, 20)
+  noteLines.forEach((t, i) => doc.text(t, 18, y + 7.5 + i * 4.4))
+  y += boxH + 2
 
   // Column x positions: code | description | unit | qty | rate | amount
   const X = { code: 14, desc: 36, unit: 112, qty: 140, rate: 166, amt: 196 }
@@ -681,7 +708,7 @@ export async function createBoqPdf(data, logoDataUrl) {
   y += 8
   doc.setFontSize(8.5)
   doc.setTextColor(...GREY)
-  doc.text('Rates are the selected supplier’s price-list rates (excl. VAT). Quantities are based on the plan and the items confirmed on the quote.', 14, y)
+  doc.text(`${boqEstimateLabel(data)}: rates are price-list rates (excl. VAT) and may vary. Quantities are based on the plan and the items confirmed on the quote.`, 14, y)
 
   drawFooter(doc)
   return doc
