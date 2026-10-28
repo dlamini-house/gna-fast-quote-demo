@@ -105,20 +105,69 @@ export function useAppState() {
   return [local, setState]
 }
 
+// ---- Billing (credits + plan), kept per signed-in contractor ----
+export function userBilling(s) {
+  const u = currentUser(s)
+  return { plan: (u && u.plan) || null, credits: (u && u.credits) || 0, payments: (u && u.payments) || [] }
+}
+
 export function trialStatus(s) {
   const start = new Date(s.trialStartedAt)
   const daysUsed = Math.floor((Date.now() - start.getTime()) / (1000 * 60 * 60 * 24))
   const daysLeft = Math.max(0, TRIAL_DAYS - daysUsed)
   const quotesLeft = Math.max(0, TRIAL_QUOTES - Math.max(s.quotesCreated || 0, s.quotes.length))
-  const onTrial = !s.plan
+  const onTrial = !userBilling(s).plan
   const trialExpired = onTrial && (daysLeft === 0 || quotesLeft === 0)
   return { onTrial, daysLeft, quotesLeft, trialExpired }
 }
 
+// True while the free trial still covers the next quote (no credit is used).
+export function freeTrialActive(s) {
+  const t = trialStatus(s)
+  return t.onTrial && !t.trialExpired
+}
+
+// A quote is allowed during the free trial, or whenever the account has at least 1 credit.
 export function canGenerateQuote(s) {
-  if (s.plan) return s.credits > 0 || true // plan holders draw from monthly allowance (demo: unlimited within plan)
-  const { trialExpired } = trialStatus(s)
-  return !trialExpired
+  return freeTrialActive(s) || userBilling(s).credits > 0
+}
+
+// Takes 1 credit off the signed-in account for a new quote (nothing during the free trial).
+// Call it with the state BEFORE the quote is counted.
+export function chargeQuote(s) {
+  const u = currentUser(s)
+  if (!u || freeTrialActive(s)) return s
+  return {
+    ...s,
+    applications: s.applications.map((a) => (a.id === u.id ? { ...a, credits: Math.max(0, (a.credits || 0) - 1) } : a))
+  }
+}
+
+// Adds a confirmed Paystack payment to the signed-in account: credits, plan (if any) and a billing-history row.
+// A payment reference is only ever applied once.
+export function applyPayment(setState, email, payment) {
+  setState((s) => ({
+    ...s,
+    applications: s.applications.map((a) => {
+      if (a.email !== email) return a
+      if ((a.payments || []).some((p) => p.reference === payment.reference)) return a
+      return {
+        ...a,
+        credits: (a.credits || 0) + payment.credits,
+        plan: payment.plan || a.plan || null,
+        payments: [
+          {
+            reference: payment.reference,
+            description: payment.description,
+            amount: payment.amount,
+            credits: payment.credits,
+            paidAt: payment.paidAt || new Date().toISOString()
+          },
+          ...(a.payments || [])
+        ]
+      }
+    })
+  }))
 }
 
 // ---- Admin actions ----

@@ -9,7 +9,7 @@ import {
   DEMO_LABOUR_RATES,
   COMPANY_LEGAL_LINE
 } from '../data/mockData'
-import { useAppState, canGenerateQuote, currentUser } from '../data/store'
+import { useAppState, canGenerateQuote, currentUser, chargeQuote, freeTrialActive, userBilling } from '../data/store'
 import { LOGO_BASE64 } from '../data/logo'
 import { db } from '../data/db'
 import { SUPPLIERS } from '../data/suppliers'
@@ -448,7 +448,10 @@ export default function NewQuote() {
         boqData
       }
       setSavedQuoteId(newQuote.id)
-      setState((st) => ({ ...st, quotes: [...st.quotes, newQuote], quotesCreated: Math.max(st.quotesCreated || 0, st.quotes.length) + 1 }))
+      setState((st) => {
+        const charged = chargeQuote(st) // takes 1 credit unless the free trial covers it
+        return { ...charged, quotes: [...charged.quotes, newQuote], quotesCreated: Math.max(charged.quotesCreated || 0, charged.quotes.length) + 1 }
+      })
       db.set('quotes', String(newQuote.id), newQuote)
     }
     setDownloadedMsg(
@@ -460,8 +463,8 @@ export default function NewQuote() {
     return (
       <Layout title="New Quote">
         <div className="card text-center">
-          <h2 className="text-lg font-semibold mb-2">Your free trial has ended</h2>
-          <p className="text-sm text-gray-500 mb-4">Choose a plan or buy credits to keep generating quotes.</p>
+          <h2 className="text-lg font-semibold mb-2">{userBilling(state).plan ? 'You have no credits left' : 'Your free trial has ended'}</h2>
+          <p className="text-sm text-gray-500 mb-4">Buy credits or choose a plan to keep generating quotes.</p>
           <button className="btn-primary" onClick={() => navigate('/pricing')}>Go to Pricing &amp; Credits</button>
         </div>
       </Layout>
@@ -1361,7 +1364,9 @@ export default function NewQuote() {
               </p>
             )}
             <p className="text-xs text-brand-blue bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-4">
-              Generating this quote would deduct 1 credit from your account.
+              {freeTrialActive(state)
+                ? 'This quote counts as one of your free trial quotes.'
+                : `Generating this quote takes 1 credit from your account (${userBilling(state).credits} available).`}
             </p>
             <div className="flex justify-between">
               <button className="btn-secondary" onClick={() => setStep(6)}>Back</button>

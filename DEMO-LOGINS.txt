@@ -35,8 +35,6 @@ approves them from Potential Users. Good for demoing the approval flow:
   6. john@buildcore.co.za      — BuildCore (Pty) Ltd
   7. sarah@sa-structure.co.za  — SA Structure (Pty) Ltd
   8. michael@metroplans.co.za  — Metro Plans (Pty) Ltd
-  11. demo@blueprintbuilders.co.za — BLUE PRINT BUILDERS (Pty) Ltd (logo + NHBRC certificate attached;
-      admin can view and download the certificate from Potential Users)
 
 REJECTED — these will show a rejection message and cannot sign in.
 Good for demoing the "Rejected Profiles" admin tab:

@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
 import SupplierStrip from '../components/SupplierStrip'
-import { useAppState, trialStatus, currentUser } from '../data/store'
+import { useAppState, trialStatus, currentUser, userBilling } from '../data/store'
 
 export default function Dashboard() {
   const [state] = useAppState()
   const user = currentUser(state)
   const trial = trialStatus(state)
+  const { plan, credits } = userBilling(state)
   const myQuotes = user ? state.quotes.filter((q) => q.ownerEmail === user.email) : state.quotes
   const draftCount = myQuotes.filter((q) => q.status === 'draft').length
   const completedCount = myQuotes.filter((q) => q.status === 'completed').length
@@ -20,8 +21,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="card">
           <p className="text-sm text-gray-500 mb-1">Plan status</p>
-          <p className="text-2xl font-bold">{state.plan ? state.plan.name : 'Free trial'}</p>
-          {!state.plan && (
+          <p className="text-2xl font-bold">{plan ? plan.name : 'Free trial'}</p>
+          {!plan && (
             <p className={`text-sm mt-1 ${trial.trialExpired ? 'text-brand-red' : 'text-gray-500'}`}>
               {trial.trialExpired
                 ? 'Trial ended'
@@ -31,7 +32,7 @@ export default function Dashboard() {
         </div>
         <div className="card">
           <p className="text-sm text-gray-500 mb-1">Credits remaining</p>
-          <p className="text-2xl font-bold">{state.credits}</p>
+          <p className="text-2xl font-bold">{credits}</p>
           <Link to="/pricing" className="text-brand-blue text-sm font-medium">
             Buy credits &rarr;
           </Link>
