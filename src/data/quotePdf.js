@@ -648,13 +648,14 @@ export async function createBoqPdf(data, logoDataUrl) {
     doc.line(14, y, 196, y)
     y += 5
   }
+  // ensure() has already added the new page when it calls this, so only redraw the header here.
   const newPage = () => {
-    doc.addPage()
     y = 18
     tableHead()
     return y
   }
 
+  let hasDemo = false
   y += 2
   tableHead()
   data.groups.forEach((g) => {
@@ -681,8 +682,9 @@ export async function createBoqPdf(data, logoDataUrl) {
         doc.text('No price', X.rate, y, { align: 'right' })
         doc.text('-', X.amt, y, { align: 'right' })
       } else {
-        doc.text(money(r.rate), X.rate, y, { align: 'right' })
+        doc.text(money(r.rate) + (r.demoPrice ? ' *' : ''), X.rate, y, { align: 'right' })
         doc.text(money(r.amount), X.amt, y, { align: 'right' })
+        if (r.demoPrice) hasDemo = true
       }
       sub += r.amount || 0
       y += Math.max(desc.length, 1) * 4.2 + 1.8
@@ -708,7 +710,20 @@ export async function createBoqPdf(data, logoDataUrl) {
   y += 8
   doc.setFontSize(8.5)
   doc.setTextColor(...GREY)
-  doc.text(`${boqEstimateLabel(data)}: rates are price-list rates (excl. VAT) and may vary. Quantities are based on the plan and the items confirmed on the quote.`, 14, y)
+  const endNote = `${boqEstimateLabel(data)}: rates are price-list rates (excl. VAT) and may vary. Quantities are based on the plan and the items confirmed on the quote.`
+  doc.splitTextToSize(endNote, 182).forEach((l) => {
+    y = ensure(doc, y, 5, newPage)
+    doc.text(l, 14, y)
+    y += 4.4
+  })
+  if (hasDemo) {
+    const demoNote = '* Demo price: this supplier has no like-for-like item for this plan line, so a demonstration price has been used. Replace it with a supplier quote before ordering.'
+    doc.splitTextToSize(demoNote, 182).forEach((l) => {
+      y = ensure(doc, y, 5, newPage)
+      doc.text(l, 14, y)
+      y += 4.4
+    })
+  }
 
   drawFooter(doc)
   return doc

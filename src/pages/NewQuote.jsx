@@ -13,7 +13,7 @@ import { useAppState, canGenerateQuote, currentUser, chargeQuote, freeTrialActiv
 import { LOGO_BASE64 } from '../data/logo'
 import { db } from '../data/db'
 import { SUPPLIERS } from '../data/suppliers'
-import { getDefaultPriceList, cosaveRatesFromItems, AVERAGE_SLUG } from '../data/supplierPriceLists'
+import { getDefaultPriceList, cosaveRatesFromItems, getCosaveFallbackRates, AVERAGE_SLUG } from '../data/supplierPriceLists'
 import { DEMO_PLAN, buildTakeoff } from '../data/demoPlan'
 import { createQuotePdf, quotePdfFileName, createBoqPdf, boqPdfFileName, BOQ_DISCLAIMER } from '../data/quotePdf'
 import { buildScope, buildQuoteLines } from '../data/quoteScope'
@@ -94,7 +94,7 @@ export default function NewQuote() {
   const [materials, setMaterials] = useState(MOCK_EXTRACTED_MATERIALS.map((m) => ({ ...m })))
   const [priceListInfo, setPriceListInfo] = useState(null) // uploaded BUCO price list metadata, if any
   const [priceOverrides, setPriceOverrides] = useState(null) // code -> { price, description } from that upload
-  const [ratesOnly, setRatesOnly] = useState(false) // Cosave: plan items with no Cosave equivalent stay unpriced (R0)
+  const [ratesOnly, setRatesOnly] = useState(false) // Cosave: plan items with no Cosave equivalent use a demo price
   const [priceCatalog, setPriceCatalog] = useState([]) // full [{ category, items }] from that upload, for browsing
 
   // Step 3: items the contractor adds themselves — things no plan can show,
@@ -133,6 +133,9 @@ export default function NewQuote() {
       if (supplier === COSAVE_SLUG) {
         // Cosave has its own catalogue: plan items are priced only where Cosave has an equivalent.
         const rates = record.rates || cosaveRatesFromItems(record.items)
+        // Plan items with no like-for-like Cosave item get a demo (dummy) price so nothing is left at R0.
+        const fallback = getCosaveFallbackRates()
+        Object.keys(fallback).forEach((code) => { map[code] = { price: fallback[code], demo: true } })
         Object.keys(rates).forEach((code) => { map[code] = { price: rates[code] } })
         setRatesOnly(true)
       } else {
@@ -188,6 +191,7 @@ export default function NewQuote() {
     : []
 
   const allMaterials = [...materials, ...extraMaterials, ...consumableLines]
+  const demoPriceCount = materials.filter((m) => m.demoPrice && !m.rateEdited && (parseFloat(m.qty) || 0) > 0).length
   const unpricedCount = materials.filter((m) => m.noPrice && !(m.rate > 0) && (parseFloat(m.qty) || 0) > 0).length
   // Step 3 browses every category except consumables (which has its own step).
   const extraCatalog = priceCatalog.filter((c) => !isConsumablesCategory(c.category) && !isLabourCategory(c.category))
@@ -199,8 +203,8 @@ export default function NewQuote() {
       // The price list's wording is generic ("Internal doors"), the plan's
       // line is specific ("Door Hardboard Hollow Core 813x2032mm") — keep the
       // specific description and take only the rate from the list.
-      if (match) return { ...m, rate: match.price, noPrice: false }
-      // Cosave: no like-for-like item, so leave it unpriced for the contractor to fill in.
+      if (match) return { ...m, rate: match.price, noPrice: false, demoPrice: !!match.demo, rateInput: undefined }
+      // Cosave: not in the plan-item list at all, so leave it for the contractor to price.
       if (ratesOnly) return { ...m, rate: 0, noPrice: true, rateInput: '' }
       return m.noPrice ? { ...m, noPrice: false } : m
     })
@@ -276,7 +280,7 @@ export default function NewQuote() {
   }
 
   function updateMaterialRate(id, value) {
-    setMaterials((items) => items.map((it) => (it.id === id ? { ...it, rate: parseFloat(value) || 0, rateInput: value } : it)))
+    setMaterials((items) => items.map((it) => (it.id === id ? { ...it, rate: parseFloat(value) || 0, rateInput: value, rateEdited: true } : it)))
   }
 
   function updateMaterialQty(id, qty) {
@@ -392,7 +396,8 @@ export default function NewQuote() {
         qty,
         rate: m.rate,
         amount: qty * m.rate,
-        noPrice: !!m.noPrice
+        noPrice: !!m.noPrice,
+        demoPrice: !!m.demoPrice && !m.rateEdited
       })
     })
     return {
@@ -770,6 +775,17 @@ export default function NewQuote() {
                             />
                             {!(m.rate > 0) && <span className="block text-[11px] text-amber-700">No {supplierInfo?.name || 'supplier'} price</span>}
                           </>
+                        ) : m.demoPrice ? (
+                          <>
+                            <input
+                              type="number"
+                              min="0"
+                              className="w-24 border border-amber-300 bg-amber-50 rounded px-2 py-1 text-right"
+                              value={m.rateInput ?? m.rate}
+                              onChange={(e) => updateMaterialRate(m.id, e.target.value)}
+                            />
+                            <span className="block text-[11px] text-amber-700">{m.rateEdited ? 'Your rate' : 'Demo price'}</span>
+                          </>
                         ) : (
                           <>R {m.rate.toFixed(2)}</>
                         )}
@@ -780,6 +796,11 @@ export default function NewQuote() {
                 </tbody>
               </table>
             </div>
+            {demoPriceCount > 0 && (
+              <p className="mt-3 text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                {demoPriceCount} line{demoPriceCount === 1 ? ' has' : 's have'} no like-for-like {supplierInfo?.name || 'supplier'} item, so a demo price is used (marked &ldquo;Demo price&rdquo;). You can type your own rate in the highlighted box.
+              </p>
+            )}
             {unpricedCount > 0 && (
               <p className="mt-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 {unpricedCount} line{unpricedCount === 1 ? '' : 's'} {unpricedCount === 1 ? 'has' : 'have'} no {supplierInfo?.name || 'supplier'} equivalent, so
